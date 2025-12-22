@@ -7,39 +7,23 @@ repository: "/Users/manuelmaly/Dev/ai/git-jenga"
 # If this list is not empty, 'exec' will refuse to run.
 # User must move entries to appropriate branch fix blocks or delete files.
 errors:
-  []
+  - type: unmapped_file
+    path: "brand_new.txt"
+    message: "New file detected. Assign to a branch fix block manually."
 
 # Source state snapshot
 source:
-  head_branch: "feature/TEST-1-plan"
-  head_commit: "7852380d2562ca5bd725f7984b60ff995e0c2a21"
+  head_branch: "feature/TEST-1-unmapped"
+  head_commit: "e9add2442c66c5f6a8d503c2759c65ba6602ed89"
   base_branch: "main"
-  base_commit: "cbff4b8fbbc76e9a933c3a1564a2d2203a4b483e"
+  base_commit: "cb30eaf02e0b985a05f621fd10c1becc70e9ec6b"
 
 # Branch stack (ordered from base to HEAD)
 stack:
-  - branch: "feature/TEST-1-plan"
-    commit: "7852380d2562ca5bd725f7984b60ff995e0c2a21"
+  - branch: "feature/TEST-1-unmapped"
+    commit: "e9add2442c66c5f6a8d503c2759c65ba6602ed89"
     parent_branch: "main"
     commits_from_parent: 1
-    needs_fix: true
+    needs_fix: false
     step_status: pending
-    fix:
-      commit_message: |
-        fix: Apply changes
-        
-        Jira: TEST
-      files:
-        - path: "feature.txt"
-          change_type: modified
-          staged: false
-          diff: |
-            diff --git a/feature.txt b/feature.txt
-            index 1956e05..1394c05 100644
-            --- a/feature.txt
-            +++ b/feature.txt
-            @@ -1 +1,2 @@
-             Feature
-            +Modified
-            
 

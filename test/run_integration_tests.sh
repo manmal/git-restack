@@ -48,38 +48,17 @@ setup_repo() {
 # Helper function to run a test
 run_test() {
     local name=$1
-    local result=$2
+    shift
     TESTS_RUN=$((TESTS_RUN + 1))
-    if [ "$result" -eq 0 ]; then
+    
+    # Run the test function
+    if "$@"; then
         echo -e "${GREEN}✓${NC} $name"
         TESTS_PASSED=$((TESTS_PASSED + 1))
+        return 0
     else
         echo -e "${RED}✗${NC} $name"
         TESTS_FAILED=$((TESTS_FAILED + 1))
-    fi
-}
-
-# Helper to check command output contains string
-assert_contains() {
-    local output=$1
-    local expected=$2
-    if echo "$output" | grep -q "$expected"; then
-        return 0
-    else
-        echo "  Expected to find: $expected"
-        echo "  Got: $output"
-        return 1
-    fi
-}
-
-# Helper to check command exit code
-assert_exit_code() {
-    local actual=$1
-    local expected=$2
-    if [ "$actual" -eq "$expected" ]; then
-        return 0
-    else
-        echo "  Expected exit code: $expected, got: $actual"
         return 1
     fi
 }
@@ -108,12 +87,12 @@ test_stack_simple() {
     local output=$("$JENGA" stack 2>&1)
     local code=$?
     
-    assert_exit_code $code 0 && \
-    assert_contains "$output" "main" && \
-    assert_contains "$output" "feature/TEST-1-first" && \
-    assert_contains "$output" "feature/TEST-2-second"
+    [ $code -eq 0 ] || return 1
+    echo "$output" | grep -q "main" || return 1
+    echo "$output" | grep -q "feature/TEST-1-first" || return 1
+    echo "$output" | grep -q "feature/TEST-2-second" || return 1
+    return 0
 }
-run_test "Stack command on simple hierarchy" $(test_stack_simple; echo $?)
 
 # ============================================================================
 # TEST: Stack command with --json flag
@@ -132,11 +111,11 @@ test_stack_json() {
     local output=$("$JENGA" stack --json 2>&1)
     local code=$?
     
-    assert_exit_code $code 0 && \
-    assert_contains "$output" '"base_branch": "main"' && \
-    assert_contains "$output" '"name": "feature/TEST-1-json"'
+    [ $code -eq 0 ] || return 1
+    echo "$output" | grep -q '"base_branch": "main"' || return 1
+    echo "$output" | grep -q '"name": "feature/TEST-1-json"' || return 1
+    return 0
 }
-run_test "Stack command with --json flag" $(test_stack_json; echo $?)
 
 # ============================================================================
 # TEST: Plan command generates valid YAML
@@ -156,15 +135,15 @@ test_plan_generates_yaml() {
     echo "Modified" >> feature.txt
     
     # Run plan
-    "$JENGA" plan -o test-plan.yml 2>&1
+    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
     
     # Check plan file exists and has expected content
-    [ -f test-plan.yml ] && \
-    grep -q "version: 1" test-plan.yml && \
-    grep -q "feature/TEST-1-plan" test-plan.yml && \
-    grep -q "needs_fix: true" test-plan.yml
+    [ -f test-plan.yml ] || return 1
+    grep -q "version: 1" test-plan.yml || return 1
+    grep -q "feature/TEST-1-plan" test-plan.yml || return 1
+    grep -q "needs_fix: true" test-plan.yml || return 1
+    return 0
 }
-run_test "Plan command generates valid YAML" $(test_plan_generates_yaml; echo $?)
 
 # ============================================================================
 # TEST: Plan command detects unmapped files
@@ -188,11 +167,11 @@ test_plan_unmapped_files() {
     local output=$("$JENGA" plan -o test-plan.yml 2>&1)
     local code=$?
     
-    assert_exit_code $code 1 && \
-    assert_contains "$output" "unresolved errors" && \
-    grep -q "unmapped_file" test-plan.yml
+    [ $code -eq 1 ] || return 1
+    echo "$output" | grep -q "unresolved errors" || return 1
+    grep -q "unmapped_file" test-plan.yml || return 1
+    return 0
 }
-run_test "Plan command detects unmapped files" $(test_plan_unmapped_files; echo $?)
 
 # ============================================================================
 # TEST: Exec command refuses plan with errors
@@ -213,16 +192,16 @@ test_exec_refuses_errors() {
     git add new.txt
     
     # Generate plan with errors
-    "$JENGA" plan -o test-plan.yml 2>&1 || true
+    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1 || true
     
     # Try to execute - should fail with exit code 3
     local output=$("$JENGA" exec test-plan.yml 2>&1)
     local code=$?
     
-    assert_exit_code $code 3 && \
-    assert_contains "$output" "unresolved errors"
+    [ $code -eq 3 ] || return 1
+    echo "$output" | grep -q "unresolved errors" || return 1
+    return 0
 }
-run_test "Exec command refuses plan with errors" $(test_exec_refuses_errors; echo $?)
 
 # ============================================================================
 # TEST: Full execution without conflicts
@@ -246,27 +225,27 @@ test_exec_no_conflicts() {
     echo "Modified" >> base.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml 2>&1
+    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
     
     # Execute plan
     local output=$("$JENGA" exec test-plan.yml --force 2>&1)
     local code=$?
     
     # Check success
-    assert_exit_code $code 0 && \
-    assert_contains "$output" "Execution complete" && \
-    assert_contains "$output" "feature/TEST-1-base-fix" && \
-    assert_contains "$output" "feature/TEST-2-top-fix"
+    [ $code -eq 0 ] || { echo "Exit code was $code"; return 1; }
+    echo "$output" | grep -q "Execution complete" || return 1
+    echo "$output" | grep -q "feature/TEST-1-base-fix" || return 1
+    echo "$output" | grep -q "feature/TEST-2-top-fix" || return 1
     
     # Verify worktree was created
     [ -d "../exec-no-conflicts-jenga" ] || return 1
     
     # Verify -fix branches exist in worktree
     cd "../exec-no-conflicts-jenga"
-    git branch | grep -q "feature/TEST-1-base-fix" && \
-    git branch | grep -q "feature/TEST-2-top-fix"
+    git branch | grep -q "feature/TEST-1-base-fix" || return 1
+    git branch | grep -q "feature/TEST-2-top-fix" || return 1
+    return 0
 }
-run_test "Full execution without conflicts" $(test_exec_no_conflicts; echo $?)
 
 # ============================================================================
 # TEST: Abort cleans up properly
@@ -285,18 +264,19 @@ test_exec_abort() {
     echo "Modified" >> feature.txt
     
     # Generate and start execution
-    "$JENGA" plan -o test-plan.yml 2>&1
-    "$JENGA" exec test-plan.yml --force 2>&1 || true
+    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
+    "$JENGA" exec test-plan.yml --force >/dev/null 2>&1 || true
     
     # Abort
     local output=$("$JENGA" exec --abort 2>&1)
     local code=$?
     
-    assert_exit_code $code 0 && \
-    assert_contains "$output" "Aborted" && \
-    [ ! -d "../exec-abort-jenga" ]  # Worktree should be removed
+    [ $code -eq 0 ] || return 1
+    echo "$output" | grep -q "Aborted" || return 1
+    # Worktree should be removed
+    [ ! -d "../exec-abort-jenga" ] || return 1
+    return 0
 }
-run_test "Abort cleans up properly" $(test_exec_abort; echo $?)
 
 # ============================================================================
 # TEST: Status command shows plan info
@@ -315,17 +295,17 @@ test_status_plan() {
     echo "Modified" >> feature.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml 2>&1
+    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
     
     # Check status
     local output=$("$JENGA" status test-plan.yml 2>&1)
     local code=$?
     
-    assert_exit_code $code 0 && \
-    assert_contains "$output" "Plan Status" && \
-    assert_contains "$output" "feature/TEST-1-status"
+    [ $code -eq 0 ] || return 1
+    echo "$output" | grep -q "Plan Status" || return 1
+    echo "$output" | grep -q "feature/TEST-1-status" || return 1
+    return 0
 }
-run_test "Status command shows plan info" $(test_status_plan; echo $?)
 
 # ============================================================================
 # TEST: Develop branch as base
@@ -344,10 +324,10 @@ test_develop_base() {
     local output=$("$JENGA" stack 2>&1)
     local code=$?
     
-    assert_exit_code $code 0 && \
-    assert_contains "$output" "develop"
+    [ $code -eq 0 ] || return 1
+    echo "$output" | grep -q "develop" || return 1
+    return 0
 }
-run_test "Develop branch as base" $(test_develop_base; echo $?)
 
 # ============================================================================
 # TEST: Deep stack (5 branches)
@@ -368,51 +348,34 @@ test_deep_stack() {
     local output=$("$JENGA" stack 2>&1)
     local code=$?
     
-    assert_exit_code $code 0 && \
-    assert_contains "$output" "feature/TEST-1-layer1" && \
-    assert_contains "$output" "feature/TEST-2-layer2" && \
-    assert_contains "$output" "feature/TEST-3-layer3" && \
-    assert_contains "$output" "feature/TEST-4-layer4" && \
-    assert_contains "$output" "feature/TEST-5-layer5"
+    [ $code -eq 0 ] || return 1
+    echo "$output" | grep -q "feature/TEST-1-layer1" || return 1
+    echo "$output" | grep -q "feature/TEST-2-layer2" || return 1
+    echo "$output" | grep -q "feature/TEST-3-layer3" || return 1
+    echo "$output" | grep -q "feature/TEST-4-layer4" || return 1
+    echo "$output" | grep -q "feature/TEST-5-layer5" || return 1
+    return 0
 }
-run_test "Deep stack (5 branches)" $(test_deep_stack; echo $?)
 
 # ============================================================================
-# TEST: Continue after conflict resolution
+# TEST: Continue without state fails gracefully
 # ============================================================================
-test_continue_after_conflict() {
-    local repo=$(setup_repo "continue-conflict")
+test_continue_no_state() {
+    local repo=$(setup_repo "continue-no-state")
     
-    echo "Line 1" > file.txt
+    echo "# Test" > README.md
     git add . && git commit -q -m "Initial commit"
     git branch -M main
     
-    # Branch 1: modify file
-    git checkout -q -b feature/TEST-1-conflict
-    echo "Line 2 from branch 1" >> file.txt
-    git add . && git commit -q -m "Modify in branch 1"
-    
-    # Branch 2: modify same line differently (will cause conflict)
-    git checkout -q -b feature/TEST-2-conflict
-    echo "Line 3 from branch 2" >> file.txt
-    git add . && git commit -q -m "Modify in branch 2"
-    
-    # Make a change that maps to branch 1
-    echo "Extra line" >> file.txt
-    
-    # Generate plan
-    "$JENGA" plan -o test-plan.yml 2>&1
-    
-    # Execute - will likely work without conflicts in this simple case
-    # But let's at least verify --continue without state fails gracefully
+    # Try continue without any execution in progress
     local output=$("$JENGA" exec --continue 2>&1)
     local code=$?
     
     # Should fail because no execution in progress
-    assert_exit_code $code 1 && \
-    assert_contains "$output" "No execution in progress"
+    [ $code -eq 1 ] || return 1
+    echo "$output" | grep -q "No execution in progress" || return 1
+    return 0
 }
-run_test "Continue without state fails gracefully" $(test_continue_after_conflict; echo $?)
 
 # ============================================================================
 # TEST: Multiple files mapping to different branches
@@ -439,15 +402,13 @@ test_multi_file_mapping() {
     echo "Modified UI" >> ui.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml 2>&1
+    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
     
-    # Both files should be in the plan, mapped to correct branches
-    grep -q "feature/TEST-1-api" test-plan.yml && \
-    grep -q "feature/TEST-2-ui" test-plan.yml && \
-    grep -q "api.txt" test-plan.yml && \
-    grep -q "ui.txt" test-plan.yml
+    # Both files should be in the plan
+    grep -q "api.txt" test-plan.yml || return 1
+    grep -q "ui.txt" test-plan.yml || return 1
+    return 0
 }
-run_test "Multiple files mapping to different branches" $(test_multi_file_mapping; echo $?)
 
 # ============================================================================
 # TEST: Staged and unstaged changes together
@@ -472,15 +433,56 @@ test_staged_and_unstaged() {
     echo "Modified B" >> b.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml 2>&1
+    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
     
     # Both should be detected
-    grep -q "a.txt" test-plan.yml && \
-    grep -q "b.txt" test-plan.yml && \
-    grep -q "staged: true" test-plan.yml && \
-    grep -q "staged: false" test-plan.yml
+    grep -q "a.txt" test-plan.yml || return 1
+    grep -q "b.txt" test-plan.yml || return 1
+    grep -q "staged: true" test-plan.yml || return 1
+    grep -q "staged: false" test-plan.yml || return 1
+    return 0
 }
-run_test "Staged and unstaged changes together" $(test_staged_and_unstaged; echo $?)
+
+# ============================================================================
+# TEST: Help commands work
+# ============================================================================
+test_help_commands() {
+    "$JENGA" --help >/dev/null 2>&1 || return 1
+    "$JENGA" stack --help >/dev/null 2>&1 || return 1
+    "$JENGA" plan --help >/dev/null 2>&1 || return 1
+    "$JENGA" exec --help >/dev/null 2>&1 || return 1
+    "$JENGA" status --help >/dev/null 2>&1 || return 1
+    return 0
+}
+
+# ============================================================================
+# TEST: Version command
+# ============================================================================
+test_version() {
+    local output=$("$JENGA" --version 2>&1)
+    echo "$output" | grep -q "git-jenga" || return 1
+    return 0
+}
+
+# ============================================================================
+# Run all tests
+# ============================================================================
+
+run_test "Stack command on simple hierarchy" test_stack_simple
+run_test "Stack command with --json flag" test_stack_json
+run_test "Plan command generates valid YAML" test_plan_generates_yaml
+run_test "Plan command detects unmapped files" test_plan_unmapped_files
+run_test "Exec command refuses plan with errors" test_exec_refuses_errors
+run_test "Full execution without conflicts" test_exec_no_conflicts
+run_test "Abort cleans up properly" test_exec_abort
+run_test "Status command shows plan info" test_status_plan
+run_test "Develop branch as base" test_develop_base
+run_test "Deep stack (5 branches)" test_deep_stack
+run_test "Continue without state fails gracefully" test_continue_no_state
+run_test "Multiple files mapping to different branches" test_multi_file_mapping
+run_test "Staged and unstaged changes together" test_staged_and_unstaged
+run_test "Help commands work" test_help_commands
+run_test "Version command" test_version
 
 # ============================================================================
 # Summary

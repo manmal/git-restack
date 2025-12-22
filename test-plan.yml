@@ -8,22 +8,15 @@ repository: "/Users/manuelmaly/Dev/ai/git-jenga"
 # User must move entries to appropriate branch fix blocks or delete files.
 errors:
   - type: unmapped_file
-    path: "brand_new.txt"
+    path: "new.txt"
     message: "New file detected. Assign to a branch fix block manually."
 
 # Source state snapshot
 source:
-  head_branch: "feature/TEST-1-unmapped"
-  head_commit: "e9add2442c66c5f6a8d503c2759c65ba6602ed89"
+  head_branch: "feature/TEST-1-errors"
+  head_commit: "ebe4b81e356e3169c64997fc74ec04a935df533c"
   base_branch: "main"
-  base_commit: "cb30eaf02e0b985a05f621fd10c1becc70e9ec6b"
+  base_commit: "ebe4b81e356e3169c64997fc74ec04a935df533c"
 
 # Branch stack (ordered from base to HEAD)
 stack:
-  - branch: "feature/TEST-1-unmapped"
-    commit: "e9add2442c66c5f6a8d503c2759c65ba6602ed89"
-    parent_branch: "main"
-    commits_from_parent: 1
-    needs_fix: false
-    step_status: pending
-

@@ -1,0 +1,9 @@
+# Zig build artifacts
+.zig-cache/
+zig-out/
+
+# Generated plans
+jenga-plan.yml
+
+# macOS
+.DS_Store

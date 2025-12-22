@@ -331,16 +331,216 @@ fn handleAbort(allocator: std.mem.Allocator) !void {
 }
 
 fn handleContinue(allocator: std.mem.Allocator) !void {
-    _ = allocator;
     if (!stateExists()) {
         std.debug.print("Error: No execution in progress.\n", .{});
         std.process.exit(1);
     }
 
-    // TODO: Implement proper continue logic
-    std.debug.print("Continue not fully implemented yet.\n", .{});
-    std.debug.print("Please complete the cherry-pick manually in the worktree, then re-run exec.\n", .{});
-    std.process.exit(1);
+    // Load state
+    const state_content = std.fs.cwd().readFileAlloc(allocator, STATE_FILE, 1024 * 1024) catch {
+        std.debug.print("Error: Could not read state file.\n", .{});
+        std.process.exit(1);
+    };
+    defer allocator.free(state_content);
+
+    var state = parser.parseState(allocator, state_content) catch {
+        std.debug.print("Error: Could not parse state file.\n", .{});
+        std.process.exit(1);
+    };
+
+    std.debug.print("Resuming execution from step {d}...\n", .{state.current_step_index + 1});
+    std.debug.print("Worktree: {s}\n", .{state.worktree_path});
+
+    // Load plan
+    const plan_content = std.fs.cwd().readFileAlloc(allocator, state.plan_file, 10 * 1024 * 1024) catch {
+        std.debug.print("Error: Could not read plan file '{s}'\n", .{state.plan_file});
+        std.process.exit(1);
+    };
+    defer allocator.free(plan_content);
+
+    const plan = parser.parsePlan(allocator, plan_content) catch {
+        std.debug.print("Error: Could not parse plan file.\n", .{});
+        std.process.exit(1);
+    };
+
+    const wt_path = state.worktree_path;
+
+    // Check worktree still exists
+    std.fs.cwd().access(wt_path, .{}) catch {
+        std.debug.print("Error: Worktree '{s}' no longer exists.\n", .{wt_path});
+        std.debug.print("Run --abort to clean up state.\n", .{});
+        std.process.exit(1);
+    };
+
+    // Build completed branches list from state
+    var completed: std.ArrayListUnmanaged([]const u8) = .{};
+    defer completed.deinit(allocator);
+    for (state.completed_branches) |branch| {
+        try completed.append(allocator, branch);
+    }
+
+    // Resume from current_step_index
+    // The conflict happened during cherry-pick, which the user has now resolved
+    // We need to:
+    // 1. Apply fixes for the current branch (if any)
+    // 2. Continue with remaining branches
+
+    const start_idx = state.current_step_index;
+
+    for (plan.stack.branches[start_idx..], start_idx..) |branch, idx| {
+        const is_first = idx == start_idx;
+
+        state.current_step_index = @intCast(idx);
+        state.last_updated = try strings.formatTimestamp(allocator);
+        state.status = .in_progress;
+        try saveState(allocator, state);
+
+        std.debug.print("\n[{d}/{d}] Processing: {s}\n", .{ idx + 1, plan.stack.branches.len, branch.name });
+
+        const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+
+        // For the first (resumed) branch, we're already on it after cherry-pick --continue
+        // For subsequent branches, we need to create and cherry-pick
+        if (!is_first) {
+            // Create the fix branch in worktree
+            std.debug.print("  Creating branch: {s}\n", .{fix_branch_name});
+
+            _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", "-b", fix_branch_name }) catch |err| {
+                std.debug.print("Error: Could not create branch: {any}\n", .{err});
+                state.status = .failed;
+                try saveState(allocator, state);
+                std.process.exit(1);
+            };
+
+            // Cherry-pick commits from parent to this branch
+            if (branch.parent_branch) |parent| {
+                const range = try std.fmt.allocPrint(allocator, "{s}..{s}", .{ parent, branch.name });
+                std.debug.print("  Cherry-picking: {s}\n", .{range});
+
+                const cherry_result = process.runGitWithStatus(allocator, &.{
+                    "-C",
+                    wt_path,
+                    "cherry-pick",
+                    range,
+                }) catch |err| {
+                    std.debug.print("Error: Cherry-pick failed: {any}\n", .{err});
+                    state.status = .conflict;
+                    try saveState(allocator, state);
+                    std.process.exit(2);
+                };
+                defer allocator.free(cherry_result.stdout);
+                defer allocator.free(cherry_result.stderr);
+
+                if (cherry_result.exit_code != 0) {
+                    std.debug.print("\n\x1b[33mConflict detected during cherry-pick.\x1b[0m\n\n", .{});
+                    std.debug.print("Resolve conflicts in worktree: {s}\n\n", .{wt_path});
+                    std.debug.print("Then run:\n", .{});
+                    std.debug.print("  cd {s}\n", .{wt_path});
+                    std.debug.print("  git add <resolved_files>\n", .{});
+                    std.debug.print("  git cherry-pick --continue\n", .{});
+                    std.debug.print("  cd -\n", .{});
+                    std.debug.print("  git-jenga exec --continue\n\n", .{});
+                    std.debug.print("Or abort:\n", .{});
+                    std.debug.print("  git-jenga exec --abort\n", .{});
+
+                    state.status = .conflict;
+                    try saveState(allocator, state);
+                    std.process.exit(2);
+                }
+            }
+        } else {
+            std.debug.print("  Resumed after conflict resolution\n", .{});
+        }
+
+        // Apply fixes if needed
+        if (branch.needs_fix) {
+            if (branch.fix) |fix| {
+                std.debug.print("  Applying {d} file fixes\n", .{fix.files.len});
+
+                for (fix.files) |file| {
+                    // Write diff to temp file
+                    const tmp_path = try std.fmt.allocPrint(allocator, "{s}/.git-jenga-patch", .{wt_path});
+                    defer allocator.free(tmp_path);
+
+                    const tmp_file = try std.fs.cwd().createFile(tmp_path, .{});
+                    try tmp_file.writeAll(file.diff);
+                    tmp_file.close();
+
+                    // Apply the patch
+                    const apply_result = process.runGitWithStatus(allocator, &.{
+                        "-C",
+                        wt_path,
+                        "apply",
+                        "--allow-empty",
+                        tmp_path,
+                    }) catch {
+                        std.debug.print("    Warning: Could not apply patch for {s}\n", .{file.path});
+                        continue;
+                    };
+                    defer allocator.free(apply_result.stdout);
+                    defer allocator.free(apply_result.stderr);
+
+                    if (apply_result.exit_code != 0) {
+                        std.debug.print("    Warning: Patch apply failed for {s}: {s}\n", .{ file.path, apply_result.stderr });
+                    } else {
+                        std.debug.print("    Applied: {s}\n", .{file.path});
+                    }
+
+                    // Clean up temp file
+                    std.fs.cwd().deleteFile(tmp_path) catch {};
+                }
+
+                // Stage and commit
+                _ = process.runGitInDir(allocator, wt_path, &.{ "add", "-A" }) catch {};
+
+                const commit_result = process.runGitWithStatus(allocator, &.{
+                    "-C",
+                    wt_path,
+                    "commit",
+                    "-m",
+                    fix.commit_message,
+                    "--allow-empty",
+                }) catch {
+                    std.debug.print("    Warning: Commit failed\n", .{});
+                    continue;
+                };
+                defer allocator.free(commit_result.stdout);
+                defer allocator.free(commit_result.stderr);
+
+                if (commit_result.exit_code == 0) {
+                    std.debug.print("  Committed fix\n", .{});
+                }
+            }
+        }
+
+        try completed.append(allocator, fix_branch_name);
+        std.debug.print("  \x1b[32m✓\x1b[0m {s} complete\n", .{fix_branch_name});
+    }
+
+    // Complete
+    state.status = .completed;
+    state.completed_branches = try completed.toOwnedSlice(allocator);
+    state.last_updated = try strings.formatTimestamp(allocator);
+
+    std.debug.print("\n\x1b[32m══════════════════════════════════════════\x1b[0m\n", .{});
+    std.debug.print("\x1b[32m Execution complete! \x1b[0m\n", .{});
+    std.debug.print("\x1b[32m══════════════════════════════════════════\x1b[0m\n\n", .{});
+
+    std.debug.print("Worktree: {s}\n\n", .{wt_path});
+    std.debug.print("Created branches:\n", .{});
+
+    for (state.completed_branches) |branch| {
+        std.debug.print("  • {s}\n", .{branch});
+    }
+
+    std.debug.print("\nNext steps:\n", .{});
+    std.debug.print("  1. Review the -fix branches in {s}\n", .{wt_path});
+    std.debug.print("  2. If satisfied, push the -fix branches\n", .{});
+    std.debug.print("  3. Update PRs to point to the -fix branches\n", .{});
+    std.debug.print("  4. Clean up with: git worktree remove {s}\n", .{wt_path});
+
+    // Clean up state file
+    cleanupState();
 }
 
 fn stateExists() bool {

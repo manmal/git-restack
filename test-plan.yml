@@ -1,22 +1,52 @@
 # git-jenga restacking plan
 version: 1
-generated: "2025-12-22T19:31:27Z"
+generated: "2025-12-22T19:31:28Z"
 repository: "/Users/manuelmaly/Dev/ai/git-jenga"
 
 # STRICT VALIDATION
 # If this list is not empty, 'exec' will refuse to run.
 # User must move entries to appropriate branch fix blocks or delete files.
 errors:
-  - type: unmapped_file
-    path: "new.txt"
-    message: "New file detected. Assign to a branch fix block manually."
+  []
 
 # Source state snapshot
 source:
-  head_branch: "feature/TEST-1-errors"
-  head_commit: "ebe4b81e356e3169c64997fc74ec04a935df533c"
+  head_branch: "feature/TEST-2-top"
+  head_commit: "2f5413ddf00ccdc432fafc5dc34664a7449d11b4"
   base_branch: "main"
-  base_commit: "ebe4b81e356e3169c64997fc74ec04a935df533c"
+  base_commit: "0b7b615078cae7bf927f722a8ae0ccca6ae41a44"
 
 # Branch stack (ordered from base to HEAD)
 stack:
+  - branch: "feature/TEST-1-base"
+    commit: "21cc6dabf73d0fdeadda49aa5cd16ec796714f15"
+    parent_branch: "main"
+    commits_from_parent: 1
+    needs_fix: true
+    step_status: pending
+    fix:
+      commit_message: |
+        fix: Apply changes
+        
+        Jira: TEST
+      files:
+        - path: "base.txt"
+          change_type: modified
+          staged: false
+          diff: |
+            diff --git a/base.txt b/base.txt
+            index 89f852c..239cdd4 100644
+            --- a/base.txt
+            +++ b/base.txt
+            @@ -1 +1,2 @@
+             Base feature
+            +Modified
+            
+
+  - branch: "feature/TEST-2-top"
+    commit: "2f5413ddf00ccdc432fafc5dc34664a7449d11b4"
+    parent_branch: "feature/TEST-1-base"
+    commits_from_parent: 1
+    needs_fix: false
+    step_status: pending
+

@@ -52,8 +52,10 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
     // Determine worktree path
     const cwd = try process.getCwd(allocator);
+    defer allocator.free(cwd);
     const repo_name = std.fs.path.basename(cwd);
     const default_worktree = try std.fmt.allocPrint(allocator, "../{s}-jenga", .{repo_name});
+    defer allocator.free(default_worktree);
     const wt_path = worktree_path orelse default_worktree;
 
     // Auto-detect: state exists = continue, no state = start fresh
@@ -79,10 +81,11 @@ fn startFresh(allocator: std.mem.Allocator, wt_path: []const u8, plan: types.Pla
 
     // Create worktree
     std.debug.print("Creating worktree at: {s}\n", .{wt_path});
-    _ = process.runGit(allocator, &.{ "worktree", "add", wt_path, plan.stack.base_branch }) catch |err| {
+    const wt_result = process.runGit(allocator, &.{ "worktree", "add", wt_path, plan.stack.base_branch }) catch |err| {
         std.debug.print("Error: Could not create worktree: {any}\n", .{err});
         std.process.exit(1);
     };
+    allocator.free(wt_result);
 
     // Initialize state at step 0, commit 0
     const timestamp = try strings.formatTimestamp(allocator);
@@ -155,6 +158,7 @@ fn executeStep(allocator: std.mem.Allocator, wt_path: []const u8, plan: types.Pl
     std.debug.print("\n[{d}/{d}] Processing: {s}\n", .{ branch_idx + 1, plan.stack.branches.len, branch.name });
 
     const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+    defer allocator.free(fix_branch_name);
 
     // Check if this -fix branch already exists
     const branch_exists = blk: {
@@ -168,34 +172,45 @@ fn executeStep(allocator: std.mem.Allocator, wt_path: []const u8, plan: types.Pl
         std.debug.print("  Creating branch: {s}\n", .{fix_branch_name});
 
         // First, checkout the parent -fix branch (or base branch for first)
-        const parent_fix = if (branch.parent_branch) |parent| blk: {
+        const parent_fix_allocated = if (branch.parent_branch) |parent| blk: {
             // If parent is the base branch, use it directly; otherwise append -fix
+            if (std.mem.eql(u8, parent, plan.stack.base_branch)) {
+                break :blk false;
+            } else {
+                break :blk true;
+            }
+        } else false;
+        const parent_fix = if (branch.parent_branch) |parent| blk: {
             if (std.mem.eql(u8, parent, plan.stack.base_branch)) {
                 break :blk plan.stack.base_branch;
             } else {
                 break :blk try std.fmt.allocPrint(allocator, "{s}-fix", .{parent});
             }
         } else plan.stack.base_branch;
+        defer if (parent_fix_allocated) allocator.free(parent_fix);
 
-        _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", parent_fix }) catch |err| {
+        const checkout_result = process.runGitInDir(allocator, wt_path, &.{ "checkout", parent_fix }) catch |err| {
             std.debug.print("Error: Could not checkout parent branch {s}: {any}\n", .{ parent_fix, err });
             state.status = .failed;
             try saveState(allocator, state);
             std.process.exit(1);
         };
+        allocator.free(checkout_result);
 
-        _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", "-b", fix_branch_name }) catch |err| {
+        const create_result = process.runGitInDir(allocator, wt_path, &.{ "checkout", "-b", fix_branch_name }) catch |err| {
             std.debug.print("Error: Could not create branch: {any}\n", .{err});
             state.status = .failed;
             try saveState(allocator, state);
             std.process.exit(1);
         };
+        allocator.free(create_result);
 
         // Reset commit index for new branch
         state.current_commit_index = 0;
     } else {
         // Branch exists, checkout it
-        _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", fix_branch_name }) catch {};
+        const co_result = process.runGitInDir(allocator, wt_path, &.{ "checkout", fix_branch_name }) catch null;
+        if (co_result) |r| allocator.free(r);
     }
 
     // Get commits to cherry-pick
@@ -212,7 +227,10 @@ fn executeStep(allocator: std.mem.Allocator, wt_path: []const u8, plan: types.Pl
         defer allocator.free(commits_output);
 
         var commits: std.ArrayListUnmanaged([]const u8) = .{};
-        defer commits.deinit(allocator);
+        defer {
+            for (commits.items) |c| allocator.free(c);
+            commits.deinit(allocator);
+        }
 
         var commits_iter = std.mem.splitScalar(u8, strings.trim(commits_output), '\n');
         while (commits_iter.next()) |commit_sha| {
@@ -299,7 +317,8 @@ fn executeStep(allocator: std.mem.Allocator, wt_path: []const u8, plan: types.Pl
             }
 
             // Stage and commit
-            _ = process.runGitInDir(allocator, wt_path, &.{ "add", "-A" }) catch {};
+            const add_result = process.runGitInDir(allocator, wt_path, &.{ "add", "-A" }) catch null;
+            if (add_result) |r| allocator.free(r);
 
             const commit_result = process.runGitWithStatus(allocator, &.{
                 "-C",

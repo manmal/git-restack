@@ -604,9 +604,28 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
 
         try completed.append(allocator, fix_branch_name);
         std.debug.print("  \x1b[32m✓\x1b[0m {s} complete\n", .{fix_branch_name});
+
+        // If mode is step, process only one branch then exit
+        if (state.mode == .step) {
+            state.current_step_index = @intCast(idx + 1);
+            state.current_commit_index = 0;
+            state.last_updated = try strings.formatTimestamp(allocator);
+
+            if (state.current_step_index >= plan.stack.branches.len) {
+                state.status = .completed;
+                try saveState(allocator, state);
+                std.debug.print("\n\x1b[32mAll {d} branches complete!\x1b[0m\n", .{plan.stack.branches.len});
+                std.debug.print("Run: git-jenga apply\n", .{});
+                cleanupState();
+            } else {
+                try saveState(allocator, state);
+                std.debug.print("\nStep {d}/{d} done. Run 'git-jenga step' for next.\n", .{ state.current_step_index, plan.stack.branches.len });
+            }
+            return;
+        }
     }
 
-    // Complete - continue path done
+    // Complete - continue path done (exec mode)
     state.status = .completed;
     state.completed_branches = try completed.toOwnedSlice(allocator);
     state.last_updated = try strings.formatTimestamp(allocator);

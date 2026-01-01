@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -euo pipefail
 
 TARGET_DIR="../git-jenga-test-filemode-conflict"
@@ -32,7 +32,7 @@ git config user.email "test@test.com"
 git config user.name "Test User"
 
 cat > script.sh <<'EOF'
-#!/bin/sh
+#!/usr/bin/env bash
 echo base
 EOF
 git add script.sh
@@ -41,7 +41,7 @@ git branch -M main
 
 git checkout -q -b feature/TEST-1-filemode
 cat > script.sh <<'EOF'
-#!/bin/sh
+#!/usr/bin/env bash
 echo feature
 EOF
 chmod +x script.sh
@@ -55,7 +55,7 @@ git commit -q -m "Add top.txt"
 
 git checkout -q main
 cat > script.sh <<'EOF'
-#!/bin/sh
+#!/usr/bin/env bash
 echo main
 EOF
 git add script.sh
@@ -66,7 +66,7 @@ git checkout -q feature/TEST-2-top
 TOOL="jenga-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
-#!/bin/sh
+#!/usr/bin/env bash
 LOCAL="$1"
 REMOTE="$2"
 BASE="$3"

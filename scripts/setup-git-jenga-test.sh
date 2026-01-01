@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -euo pipefail
 
 TARGET_DIR="../git-jenga-test"
@@ -60,7 +60,7 @@ git checkout -q feature/TEST-2-top
 TOOL="jenga-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
-#!/bin/sh
+#!/usr/bin/env bash
 LOCAL="$1"
 REMOTE="$2"
 BASE="$3"

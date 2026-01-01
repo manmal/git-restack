@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -euo pipefail
 
 TARGET_DIR="../git-jenga-test-fix-apply"
@@ -58,7 +58,7 @@ echo "feature line with working change" > conflict.txt
 TOOL="jenga-theirs"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
-#!/bin/sh
+#!/usr/bin/env bash
 LOCAL="$1"
 REMOTE="$2"
 BASE="$3"

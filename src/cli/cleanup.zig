@@ -3,9 +3,9 @@ const process = @import("../utils/process.zig");
 const strings = @import("../utils/strings.zig");
 const parser = @import("../yaml/parser.zig");
 
-const STATE_DIR = ".git/git-jenga";
-const STATE_FILE = ".git/git-jenga/state.json";
-const PLAN_FILE = ".git/git-jenga/plan.yml";
+const STATE_DIR = ".git/git-restack";
+const STATE_FILE = ".git/git-restack/state.json";
+const PLAN_FILE = ".git/git-restack/plan.yml";
 
 pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     var plan_file: ?[]const u8 = null;
@@ -38,7 +38,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     const cwd = try process.getCwd(allocator);
     defer allocator.free(cwd);
     const repo_name = std.fs.path.basename(cwd);
-    const default_worktree = try std.fmt.allocPrint(allocator, "../{s}-jenga", .{repo_name});
+    const default_worktree = try std.fmt.allocPrint(allocator, "../{s}-restack", .{repo_name});
     defer allocator.free(default_worktree);
     const wt_path = worktree_path orelse default_worktree;
 
@@ -125,7 +125,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
         const backup_result = process.runGitWithStatus(allocator, &.{
             "branch",
             "--list",
-            "*-jenga-backup-*",
+            "*-restack-backup-*",
         }) catch null;
 
         if (backup_result) |result| {
@@ -141,7 +141,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
                     else
                         trimmed;
 
-                    if (branch_name.len > 0 and std.mem.indexOf(u8, branch_name, "jenga-backup") != null) {
+                    if (branch_name.len > 0 and std.mem.indexOf(u8, branch_name, "restack-backup") != null) {
                         backup_branches.append(allocator, strings.copy(allocator, branch_name) catch continue) catch continue;
                     }
                 }
@@ -151,7 +151,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
         const plan_branch_result = process.runGitWithStatus(allocator, &.{
             "branch",
             "--list",
-            "git-jenga-plan-*",
+            "git-restack-plan-*",
         }) catch null;
 
         if (plan_branch_result) |result| {
@@ -167,7 +167,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
                     else
                         trimmed;
 
-                    if (branch_name.len > 0 and std.mem.startsWith(u8, branch_name, "git-jenga-plan-")) {
+                    if (branch_name.len > 0 and std.mem.startsWith(u8, branch_name, "git-restack-plan-")) {
                         plan_branches.append(allocator, strings.copy(allocator, branch_name) catch continue) catch continue;
                     }
                 }
@@ -181,7 +181,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     } else false;
 
     if (!has_worktree and !has_plan_worktree and fix_branches.items.len == 0 and backup_branches.items.len == 0 and plan_branches.items.len == 0) {
-        std.debug.print("No git-jenga artifacts found.\n", .{});
+        std.debug.print("No git-restack artifacts found.\n", .{});
         return;
     }
 
@@ -350,28 +350,28 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
 fn printHelp() void {
     std.debug.print(
-        \\Usage: git-jenga cleanup [plan.yml] [OPTIONS]
+        \\Usage: git-restack cleanup [plan.yml] [OPTIONS]
         \\
-        \\Removes git-jenga worktrees and temporary branches after you're done reviewing.
-        \\Run this after 'git-jenga apply' when you're satisfied with the results.
+        \\Removes git-restack worktrees and temporary branches after you're done reviewing.
+        \\Run this after 'git-restack apply' when you're satisfied with the results.
         \\
         \\This removes:
-        \\  - The worktree (../<repo>-jenga)
-        \\  - The plan worktree (../<repo>-jenga-plan)
+        \\  - The worktree (../<repo>-restack)
+        \\  - The plan worktree (../<repo>-restack-plan)
         \\  - All -fix branches created by 'exec'
-        \\  - Any git-jenga plan/backup branches
+        \\  - Any git-restack plan/backup branches
         \\  - The plan and state files (unless --keep-plan)
         \\
         \\Options:
-        \\  --worktree-path <path>   Path to worktree (default: ../<repo>-jenga)
+        \\  --worktree-path <path>   Path to worktree (default: ../<repo>-restack)
         \\  --keep-plan              Don't delete the plan file
         \\  -f, --force              Skip confirmation prompt
         \\  -h, --help               Show this help message
         \\
         \\Examples:
-        \\  git-jenga cleanup                 # Clean up default locations
-        \\  git-jenga cleanup --force         # Skip confirmation
-        \\  git-jenga cleanup --keep-plan     # Keep plan for reference
+        \\  git-restack cleanup                 # Clean up default locations
+        \\  git-restack cleanup --force         # Skip confirmation
+        \\  git-restack cleanup --keep-plan     # Keep plan for reference
         \\
     , .{});
 }

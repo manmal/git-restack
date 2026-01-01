@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-delete-modify"
+TARGET_DIR="../git-restack-test"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,23 +31,19 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-cat > doc.txt <<'EOF'
-line one
-line two
-line three
-EOF
-git add doc.txt
-git commit -q -m "Base doc.txt"
+echo "# git-restack test repo" > README.md
+git add README.md
+git commit -q -m "Initial commit"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-delmod
-cat > doc.txt <<'EOF'
-line one
-line two feature
-line three
-EOF
-git add doc.txt
-git commit -q -m "Feature modifies doc.txt"
+echo "base" > conflict.txt
+git add conflict.txt
+git commit -q -m "Add conflict.txt"
+
+git checkout -q -b feature/TEST-1-base
+echo "feature change" > conflict.txt
+git add conflict.txt
+git commit -q -m "Feature modifies conflict.txt"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -55,12 +51,13 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-git rm -q doc.txt
-git commit -q -m "Main deletes doc.txt"
+echo "main change" > conflict.txt
+git add conflict.txt
+git commit -q -m "Main modifies conflict.txt"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -78,5 +75,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL"
+echo "Then: git-restack exec --force"

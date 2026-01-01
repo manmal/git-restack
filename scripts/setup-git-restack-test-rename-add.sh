@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-rename-rename"
+TARGET_DIR="../git-restack-test-rename-add"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,17 +31,25 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-echo "# Rename/Rename repo" > README.md
-echo "base" > name.txt
-git add README.md name.txt
-git commit -q -m "Base files"
+mkdir -p docs
+cat > docs/guide.txt <<'EOF'
+intro
+step one
+step two
+EOF
+git add docs/guide.txt
+git commit -q -m "Base guide"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-rename
-git mv name.txt feature_name.txt
-echo "feature rename" >> feature_name.txt
-git add feature_name.txt
-git commit -q -m "Rename name.txt in feature"
+git checkout -q -b feature/TEST-1-rename-add
+git mv docs/guide.txt docs/guide-renamed.txt
+cat > docs/guide-renamed.txt <<'EOF'
+intro
+step one
+step two feature
+EOF
+git add docs/guide-renamed.txt
+git commit -q -m "Rename guide and edit step two"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -49,14 +57,19 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-git mv name.txt main_name.txt
-echo "main rename" >> main_name.txt
-git add main_name.txt
-git commit -q -m "Rename name.txt in main"
+git rm -q docs/guide.txt
+mkdir -p docs
+cat > docs/guide.txt <<'EOF'
+intro
+step one
+step two main
+EOF
+git add docs/guide.txt
+git commit -q -m "Main replaces guide.txt"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -65,8 +78,7 @@ REMOTE="$2"
 BASE="$3"
 MERGED="$4"
 
-cp "$LOCAL" "$MERGED"
-exit 0
+exit 1
 EOF
 chmod +x "$SCRIPT_PATH"
 
@@ -74,5 +86,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-text-binary-conflict"
+TARGET_DIR="../git-restack-test-rename-rename"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,25 +31,17 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-cat > note.txt <<'EOF'
-alpha
-beta
-gamma
-EOF
-printf '\x00\x01base' > blob.bin
-git add note.txt blob.bin
-git commit -q -m "Base note.txt and blob.bin"
+echo "# Rename/Rename repo" > README.md
+echo "base" > name.txt
+git add README.md name.txt
+git commit -q -m "Base files"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-text-binary
-cat > note.txt <<'EOF'
-alpha
-beta feature
-gamma
-EOF
-printf '\x00\x02feature' > blob.bin
-git add note.txt blob.bin
-git commit -q -m "Feature edits text and binary"
+git checkout -q -b feature/TEST-1-rename
+git mv name.txt feature_name.txt
+echo "feature rename" >> feature_name.txt
+git add feature_name.txt
+git commit -q -m "Rename name.txt in feature"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -57,18 +49,14 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-cat > note.txt <<'EOF'
-alpha
-beta main
-gamma
-EOF
-printf '\x00\x03main' > blob.bin
-git add note.txt blob.bin
-git commit -q -m "Main edits text and binary"
+git mv name.txt main_name.txt
+echo "main rename" >> main_name.txt
+git add main_name.txt
+git commit -q -m "Rename name.txt in main"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -86,5 +74,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

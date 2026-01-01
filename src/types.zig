@@ -310,7 +310,7 @@ pub const ExecutionStatus = enum {
     }
 };
 
-pub const JengaError = error{
+pub const RestackError = error{
     GitCommandFailed,
     GitNotInsideRepository,
     NotAGitRepo,

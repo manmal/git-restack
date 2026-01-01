@@ -19,7 +19,7 @@ const TestRepo = struct {
     fn init(allocator: std.mem.Allocator, name: []const u8) !TestRepo {
         // Generate unique path
         const timestamp = std.time.milliTimestamp();
-        const path = try std.fmt.allocPrint(allocator, "/tmp/git-jenga-test-{s}-{d}", .{ name, timestamp });
+        const path = try std.fmt.allocPrint(allocator, "/tmp/git-restack-test-{s}-{d}", .{ name, timestamp });
 
         // Save original cwd
         var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -425,9 +425,9 @@ test "execution state json round-trip" {
     const allocator = testing.allocator;
 
     const state = types.ExecutionState{
-        .plan_file = "jenga-plan.yml",
+        .plan_file = "restack-plan.yml",
         .plan_hash = "sha256:abc123",
-        .worktree_path = "../repo-jenga",
+        .worktree_path = "../repo-restack",
         .current_step_index = 2,
         .started_at = "2025-01-01T10:00:00Z",
         .last_updated = "2025-01-01T10:05:00Z",
@@ -442,7 +442,7 @@ test "execution state json round-trip" {
     // Parse
     const parsed = try parser.parseState(allocator, json);
 
-    try testing.expectEqualStrings("jenga-plan.yml", parsed.plan_file);
+    try testing.expectEqualStrings("restack-plan.yml", parsed.plan_file);
     try testing.expectEqual(@as(u32, 2), parsed.current_step_index);
     try testing.expectEqual(types.ExecutionStatus.conflict, parsed.status);
     try testing.expectEqual(@as(usize, 2), parsed.completed_branches.len);

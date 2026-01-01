@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-submodule-text-mix"
-SUBMODULE_DIR="../git-jenga-test-submodule-text-mix-submodule"
+TARGET_DIR="../git-restack-test-submodule-delete"
+SUBMODULE_DIR="../git-restack-test-submodule-delete-submodule"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -43,12 +43,6 @@ git commit -q -m "Feature lib change"
 FEATURE_COMMIT=$(git rev-parse HEAD)
 
 git checkout -q "$BASE_COMMIT"
-echo "main" >> lib.txt
-git add lib.txt
-git commit -q -m "Main lib change"
-MAIN_COMMIT=$(git rev-parse HEAD)
-
-git checkout -q "$BASE_COMMIT"
 
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR"
@@ -56,25 +50,14 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-cat > notes.txt <<'EOF'
-alpha
-beta
-EOF
-git add notes.txt
-git commit -q -m "Base notes.txt"
-
 git -c protocol.file.allow=always submodule add "$SUBMODULE_DIR" lib/sub
 git commit -q -m "Add submodule at base"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-sub-text
+git checkout -q -b feature/TEST-1-sub-delete
 git -C lib/sub checkout -q "$FEATURE_COMMIT"
-cat > notes.txt <<'EOF'
-alpha
-beta feature
-EOF
-git add lib/sub notes.txt
-git commit -q -m "Feature updates submodule and notes"
+git add lib/sub
+git commit -q -m "Update submodule to feature commit"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -82,17 +65,13 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-git -C lib/sub checkout -q "$MAIN_COMMIT"
-cat > notes.txt <<'EOF'
-alpha
-beta main
-EOF
-git add lib/sub notes.txt
-git commit -q -m "Main updates submodule and notes"
+git rm -q -f lib/sub
+git commit -q -m "Main deletes submodule"
 
 git checkout -q feature/TEST-2-top
+git submodule update --init --recursive >/dev/null 2>&1 || true
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -109,5 +88,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

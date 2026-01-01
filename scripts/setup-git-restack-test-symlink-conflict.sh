@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-dir-rename"
+TARGET_DIR="../git-restack-test-symlink-conflict"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,25 +31,19 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-mkdir -p docs
-cat > docs/guide.txt <<'EOF'
-intro
-step one
-step two
+cat > config.txt <<'EOF'
+mode=base
 EOF
-git add docs/guide.txt
-git commit -q -m "Base docs/guide.txt"
+git add config.txt
+git commit -q -m "Base config.txt"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-dir-rename
-git mv docs manual
-cat > manual/guide.txt <<'EOF'
-intro
-step one
-step two feature
-EOF
-git add manual/guide.txt
-git commit -q -m "Rename docs to manual and edit guide"
+git checkout -q -b feature/TEST-1-symlink
+echo "target" > target.txt
+rm -f config.txt
+ln -s target.txt config.txt
+git add target.txt config.txt
+git commit -q -m "Replace config.txt with symlink"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -57,17 +51,15 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-cat > docs/guide.txt <<'EOF'
-intro
-step one
-step two main
+cat > config.txt <<'EOF'
+mode=main
 EOF
-git add docs/guide.txt
-git commit -q -m "Main edits guide"
+git add config.txt
+git commit -q -m "Main edits config.txt"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -76,8 +68,7 @@ REMOTE="$2"
 BASE="$3"
 MERGED="$4"
 
-cp "$LOCAL" "$MERGED"
-exit 0
+exit 1
 EOF
 chmod +x "$SCRIPT_PATH"
 
@@ -85,5 +76,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-rename-delete"
+TARGET_DIR="../git-restack-test-rename-modify"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,17 +31,25 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-echo "# Rename/Delete repo" > README.md
-echo "base" > doc.txt
-git add README.md doc.txt
-git commit -q -m "Base files"
+mkdir -p docs
+cat > docs/guide.txt <<'EOF'
+intro
+step one
+step two
+EOF
+git add docs/guide.txt
+git commit -q -m "Base guide"
 git branch -M main
 
 git checkout -q -b feature/TEST-1-rename
-git mv doc.txt doc_feature.txt
-echo "feature rename" >> doc_feature.txt
-git add doc_feature.txt
-git commit -q -m "Rename doc.txt on feature"
+git mv docs/guide.txt docs/guide-renamed.txt
+cat > docs/guide-renamed.txt <<'EOF'
+intro
+step one
+step two feature
+EOF
+git add docs/guide-renamed.txt
+git commit -q -m "Rename guide and update step two"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -49,12 +57,17 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-git rm -q doc.txt
-git commit -q -m "Delete doc.txt on main"
+cat > docs/guide.txt <<'EOF'
+intro
+step one
+step two main
+EOF
+git add docs/guide.txt
+git commit -q -m "Main updates step two"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-theirs"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -63,7 +76,7 @@ REMOTE="$2"
 BASE="$3"
 MERGED="$4"
 
-cp "$REMOTE" "$MERGED"
+cp "$LOCAL" "$MERGED"
 exit 0
 EOF
 chmod +x "$SCRIPT_PATH"
@@ -72,5 +85,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

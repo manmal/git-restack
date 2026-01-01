@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-space-text-conflict"
+TARGET_DIR="../git-restack-test-space-file-dir"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,23 +31,17 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-cat > "notes space.txt" <<'EOF'
-line1
-line2
-line3
-EOF
-git add "notes space.txt"
-git commit -q -m "Base notes space.txt"
+echo "# Space file/dir repo" > README.md
+echo "base" > "notes space.txt"
+git add README.md "notes space.txt"
+git commit -q -m "Base files"
 git branch -M main
 
 git checkout -q -b feature/TEST-1-space
-cat > "notes space.txt" <<'EOF'
-line1
-line2-feature
-line3
-EOF
-git add "notes space.txt"
-git commit -q -m "Feature edits line2"
+git mv "notes space.txt" "notes feature.txt"
+echo "feature rename" >> "notes feature.txt"
+git add "notes feature.txt"
+git commit -q -m "Rename notes space.txt on feature"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -55,17 +49,15 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-cat > "notes space.txt" <<'EOF'
-line1
-line2-main
-line3
-EOF
-git add "notes space.txt"
-git commit -q -m "Main edits line2"
+rm -f "notes space.txt"
+mkdir -p "notes space.txt"
+echo "dir version" > "notes space.txt/inside.txt"
+git add "notes space.txt/inside.txt"
+git commit -q -m "Replace notes space.txt with directory"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-theirs"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -74,7 +66,7 @@ REMOTE="$2"
 BASE="$3"
 MERGED="$4"
 
-cp "$LOCAL" "$MERGED"
+cp "$REMOTE" "$MERGED"
 exit 0
 EOF
 chmod +x "$SCRIPT_PATH"
@@ -83,5 +75,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

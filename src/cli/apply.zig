@@ -4,7 +4,7 @@ const parser = @import("../yaml/parser.zig");
 const strings = @import("../utils/strings.zig");
 const process = @import("../utils/process.zig");
 
-const DEFAULT_PLAN_FILE = ".git/git-jenga/plan.yml";
+const DEFAULT_PLAN_FILE = ".git/git-restack/plan.yml";
 
 pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     var plan_file: ?[]const u8 = null;
@@ -54,13 +54,13 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     // Determine worktree path
     const cwd = try process.getCwd(allocator);
     const repo_name = std.fs.path.basename(cwd);
-    const default_worktree = try std.fmt.allocPrint(allocator, "../{s}-jenga", .{repo_name});
+    const default_worktree = try std.fmt.allocPrint(allocator, "../{s}-restack", .{repo_name});
     const wt_path = worktree_path orelse default_worktree;
 
     // Check if worktree exists
     std.fs.cwd().access(wt_path, .{}) catch {
         std.debug.print("Error: Worktree '{s}' does not exist.\n", .{wt_path});
-        std.debug.print("Did you run 'git-jenga exec {s}' first?\n", .{actual_plan_file});
+        std.debug.print("Did you run 'git-restack exec {s}' first?\n", .{actual_plan_file});
         std.process.exit(1);
     };
 
@@ -114,7 +114,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
         std.debug.print("  - Someone pushed new commits to these branches\n", .{});
         std.debug.print("  - You created the plan from a different repository state\n", .{});
         std.debug.print("\nOptions:\n", .{});
-        std.debug.print("  1. Re-run 'git-jenga plan' to create a new plan\n", .{});
+        std.debug.print("  1. Re-run 'git-restack plan' to create a new plan\n", .{});
         std.debug.print("  2. Use --force to apply anyway (dangerous!)\n", .{});
         std.process.exit(1);
     }
@@ -148,7 +148,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
         if (check_result.exit_code != 0) {
             std.debug.print("Error: Branch '{s}' not found in worktree.\n", .{fix_branch_name});
-            std.debug.print("Did 'git-jenga exec' complete successfully?\n", .{});
+            std.debug.print("Did 'git-restack exec' complete successfully?\n", .{});
             std.process.exit(1);
         }
 
@@ -265,7 +265,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
 fn printHelp() void {
     std.debug.print(
-        \\Usage: git-jenga apply [plan.yml] [OPTIONS]
+        \\Usage: git-restack apply [plan.yml] [OPTIONS]
         \\
         \\Applies the executed plan by resetting original branches to their -fix counterparts.
         \\
@@ -276,10 +276,10 @@ fn printHelp() void {
         \\  4. Optionally cleans up the worktree and -fix branches
         \\
         \\Arguments:
-        \\  plan.yml                 Plan file (default: .git/git-jenga/plan.yml)
+        \\  plan.yml                 Plan file (default: .git/git-restack/plan.yml)
         \\
         \\Options:
-        \\  --worktree-path <path>   Path to worktree (default: ../<repo>-jenga)
+        \\  --worktree-path <path>   Path to worktree (default: ../<repo>-restack)
         \\  -n, --dry-run            Show what would be done without making changes
         \\  -f, --force              Apply even if branches have diverged (dangerous!)
         \\  --cleanup                Remove worktree and -fix branches after applying
@@ -293,9 +293,9 @@ fn printHelp() void {
         \\  Use --force to override this check (use with caution!).
         \\
         \\Examples:
-        \\  git-jenga apply --dry-run    # Preview changes
-        \\  git-jenga apply              # Apply the changes
-        \\  git-jenga apply --cleanup    # Apply and clean up
+        \\  git-restack apply --dry-run    # Preview changes
+        \\  git-restack apply              # Apply the changes
+        \\  git-restack apply --cleanup    # Apply and clean up
         \\
     , .{});
 }

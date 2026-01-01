@@ -34,7 +34,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, command, "-v") or std.mem.eql(u8, command, "--version")) {
-        std.debug.print("git-jenga {s}\n", .{VERSION});
+        std.debug.print("git-restack {s}\n", .{VERSION});
         return;
     }
 
@@ -66,9 +66,9 @@ pub fn main() !void {
 
 fn printUsage() void {
     std.debug.print(
-        \\git-jenga - Strict stacked branch restacking tool
+        \\git-restack - Strict stacked branch restacking tool
         \\
-        \\Usage: git-jenga <command> [options]
+        \\Usage: git-restack <command> [options]
         \\
         \\Commands:
         \\  stack     Show the stacked branch hierarchy
@@ -77,7 +77,7 @@ fn printUsage() void {
         \\  step      Execute ONE step of the plan (for debugging/manual control)
         \\  apply     Apply changes (reset original branches to -fix branches)
         \\  cleanup   Remove worktree and -fix branches
-        \\  nuke      Remove ALL git-jenga state (emergency reset)
+        \\  nuke      Remove ALL git-restack state (emergency reset)
         \\  status    Show current execution status
         \\
         \\Options:
@@ -85,17 +85,17 @@ fn printUsage() void {
         \\  -v, --version   Show version
         \\
         \\Examples:
-        \\  git-jenga stack                              # Show branch hierarchy
-        \\  git-jenga plan                               # Generate plan from changes
-        \\  git-jenga plan --verify "make test"          # Plan with verification
-        \\  git-jenga plan --verify-only "make test"     # Verify-only (no changes)
-        \\  git-jenga exec --force                       # Execute the plan
-        \\  git-jenga step --force                       # Execute one step at a time
-        \\  git-jenga apply                              # Apply to original branches
-        \\  git-jenga apply --cleanup                    # Apply and clean up worktree
+        \\  git-restack stack                              # Show branch hierarchy
+        \\  git-restack plan                               # Generate plan from changes
+        \\  git-restack plan --verify "make test"          # Plan with verification
+        \\  git-restack plan --verify-only "make test"     # Verify-only (no changes)
+        \\  git-restack exec --force                       # Execute the plan
+        \\  git-restack step --force                       # Execute one step at a time
+        \\  git-restack apply                              # Apply to original branches
+        \\  git-restack apply --cleanup                    # Apply and clean up worktree
         \\
         \\For command-specific help:
-        \\  git-jenga <command> --help
+        \\  git-restack <command> --help
         \\
     , .{});
 }

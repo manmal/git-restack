@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-rename-modify"
+TARGET_DIR="../git-restack-test-dir-rename"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -38,18 +38,18 @@ step one
 step two
 EOF
 git add docs/guide.txt
-git commit -q -m "Base guide"
+git commit -q -m "Base docs/guide.txt"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-rename
-git mv docs/guide.txt docs/guide-renamed.txt
-cat > docs/guide-renamed.txt <<'EOF'
+git checkout -q -b feature/TEST-1-dir-rename
+git mv docs manual
+cat > manual/guide.txt <<'EOF'
 intro
 step one
 step two feature
 EOF
-git add docs/guide-renamed.txt
-git commit -q -m "Rename guide and update step two"
+git add manual/guide.txt
+git commit -q -m "Rename docs to manual and edit guide"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -63,11 +63,11 @@ step one
 step two main
 EOF
 git add docs/guide.txt
-git commit -q -m "Main updates step two"
+git commit -q -m "Main edits guide"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -85,5 +85,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

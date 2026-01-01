@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-fix-apply"
+TARGET_DIR="../git-restack-test-crlf-conflict"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -30,17 +30,18 @@ cd "$TARGET_DIR"
 git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
+git config core.autocrlf false
+git config core.safecrlf false
 
-echo "# Fix-apply conflict repo" > README.md
-echo "base line" > conflict.txt
-git add README.md conflict.txt
-git commit -q -m "Base conflict.txt"
+printf 'line1\r\nline2\r\n' > notes.txt
+git add notes.txt
+git commit -q -m "Base notes.txt CRLF"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-base
-echo "feature line" > conflict.txt
-git add conflict.txt
-git commit -q -m "Feature edits conflict.txt"
+git checkout -q -b feature/TEST-1-crlf
+printf 'line1\r\nline2 feature\r\n' > notes.txt
+git add notes.txt
+git commit -q -m "Feature edits line2"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -48,14 +49,13 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-echo "main line" > conflict.txt
-git add conflict.txt
-git commit -q -m "Main edits conflict.txt"
+printf 'line1\r\nline2 main\r\n' > notes.txt
+git add notes.txt
+git commit -q -m "Main edits line2"
 
 git checkout -q feature/TEST-2-top
-echo "feature line with working change" > conflict.txt
 
-TOOL="jenga-theirs"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -64,8 +64,7 @@ REMOTE="$2"
 BASE="$3"
 MERGED="$4"
 
-cp "$REMOTE" "$MERGED"
-exit 0
+exit 1
 EOF
 chmod +x "$SCRIPT_PATH"
 
@@ -73,5 +72,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

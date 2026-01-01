@@ -7,9 +7,9 @@ const process = @import("../utils/process.zig");
 const stack_mod = @import("../git/stack.zig");
 const diff_mod = @import("../git/diff.zig");
 
-const STATE_DIR = ".git/git-jenga";
-const STATE_FILE = ".git/git-jenga/state.json";
-const DEFAULT_PLAN_FILE = ".git/git-jenga/plan.yml";
+const STATE_DIR = ".git/git-restack";
+const STATE_FILE = ".git/git-restack/state.json";
+const DEFAULT_PLAN_FILE = ".git/git-restack/plan.yml";
 
 pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     var plan_file: ?[]const u8 = null;
@@ -77,13 +77,13 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             std.debug.print("     {s}\n\n", .{err.message});
         }
 
-        std.debug.print("Fix these in {s} first, then run: git-jenga exec {s}\n", .{ actual_plan_file, actual_plan_file });
+        std.debug.print("Fix these in {s} first, then run: git-restack exec {s}\n", .{ actual_plan_file, actual_plan_file });
         std.process.exit(3);
     }
 
     validatePlanStack(allocator, plan) catch |err| {
         std.debug.print("\x1b[31mError:\x1b[0m Plan is out of date: {any}\n", .{err});
-        std.debug.print("Re-run: git-jenga plan\n", .{});
+        std.debug.print("Re-run: git-restack plan\n", .{});
         std.process.exit(3);
     };
 
@@ -101,7 +101,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     // Determine worktree path
     const cwd = try process.getCwd(allocator);
     const repo_name = std.fs.path.basename(cwd);
-    const default_worktree = try std.fmt.allocPrint(allocator, "../{s}-jenga", .{repo_name});
+    const default_worktree = try std.fmt.allocPrint(allocator, "../{s}-restack", .{repo_name});
     const wt_path = worktree_path orelse default_worktree;
 
     // Check if worktree path exists
@@ -267,7 +267,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
                 for (fix.files) |file| {
                     // Write diff to temp file
-                    const tmp_path = try std.fmt.allocPrint(allocator, "{s}/.git-jenga-patch", .{wt_path});
+                    const tmp_path = try std.fmt.allocPrint(allocator, "{s}/.git-restack-patch", .{wt_path});
                     defer allocator.free(tmp_path);
 
                     const tmp_file = try std.fs.cwd().createFile(tmp_path, .{});
@@ -345,7 +345,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             if (!runVerification(allocator, wt_path, cmd)) {
                 std.debug.print("\n\x1b[31mVerification failed for branch {s}!\x1b[0m\n", .{branch.name});
                 std.debug.print("Fix the issue in: {s}\n", .{wt_path});
-                std.debug.print("Then amend the commit and run: git-jenga exec --continue\n", .{});
+                std.debug.print("Then amend the commit and run: git-restack exec --continue\n", .{});
                 state.status = .conflict;
                 try saveState(allocator, state);
                 std.process.exit(4);
@@ -585,7 +585,7 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
 
                 for (fix.files) |file| {
                     // Write diff to temp file
-                    const tmp_path = try std.fmt.allocPrint(allocator, "{s}/.git-jenga-patch", .{wt_path});
+                    const tmp_path = try std.fmt.allocPrint(allocator, "{s}/.git-restack-patch", .{wt_path});
                     defer allocator.free(tmp_path);
 
                     const tmp_file = try std.fs.cwd().createFile(tmp_path, .{});
@@ -663,7 +663,7 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
             if (!runVerification(allocator, wt_path, cmd)) {
                 std.debug.print("\n\x1b[31mVerification failed for branch {s}!\x1b[0m\n", .{branch.name});
                 std.debug.print("Fix the issue in: {s}\n", .{wt_path});
-                std.debug.print("Then amend the commit and run: git-jenga exec --continue\n", .{});
+                std.debug.print("Then amend the commit and run: git-restack exec --continue\n", .{});
                 state.status = .conflict;
                 try saveState(allocator, state);
                 std.process.exit(4);
@@ -683,11 +683,11 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
                 state.status = .completed;
                 try saveState(allocator, state);
                 std.debug.print("\n\x1b[32mAll {d} branches complete!\x1b[0m\n", .{plan.stack.branches.len});
-                std.debug.print("Run: git-jenga apply\n", .{});
+                std.debug.print("Run: git-restack apply\n", .{});
                 cleanupState();
             } else {
                 try saveState(allocator, state);
-                std.debug.print("\nStep {d}/{d} done. Run 'git-jenga step' for next.\n", .{ state.current_step_index, plan.stack.branches.len });
+                std.debug.print("\nStep {d}/{d} done. Run 'git-restack step' for next.\n", .{ state.current_step_index, plan.stack.branches.len });
             }
             return;
         }
@@ -749,22 +749,22 @@ fn validatePlanStack(allocator: std.mem.Allocator, plan: types.Plan) !void {
     defer current.deinit(allocator);
 
     if (!std.mem.eql(u8, current.base_branch, plan.stack.base_branch)) {
-        return types.JengaError.InvalidPlan;
+        return types.RestackError.InvalidPlan;
     }
     if (!std.mem.eql(u8, current.base_tip, plan.stack.base_tip)) {
-        return types.JengaError.InvalidPlan;
+        return types.RestackError.InvalidPlan;
     }
     if (!std.mem.eql(u8, current.head_branch, plan.stack.head_branch)) {
-        return types.JengaError.InvalidPlan;
+        return types.RestackError.InvalidPlan;
     }
     if (current.branches.len != plan.stack.branches.len) {
-        return types.JengaError.InvalidPlan;
+        return types.RestackError.InvalidPlan;
     }
 
     for (current.branches, 0..) |branch, idx| {
         const planned = plan.stack.branches[idx];
-        if (!std.mem.eql(u8, branch.name, planned.name)) return types.JengaError.InvalidPlan;
-        if (!std.mem.eql(u8, branch.commit_sha, planned.commit_sha)) return types.JengaError.InvalidPlan;
+        if (!std.mem.eql(u8, branch.name, planned.name)) return types.RestackError.InvalidPlan;
+        if (!std.mem.eql(u8, branch.commit_sha, planned.commit_sha)) return types.RestackError.InvalidPlan;
     }
 
     var planned_set: std.StringHashMapUnmanaged(void) = .{};
@@ -777,7 +777,7 @@ fn validatePlanStack(allocator: std.mem.Allocator, plan: types.Plan) !void {
         "for-each-ref",
         "--format=%(refname:short)",
         "refs/heads/feature",
-    }) catch return types.JengaError.InvalidPlan;
+    }) catch return types.RestackError.InvalidPlan;
     defer allocator.free(feature_raw);
 
     var iter = std.mem.splitScalar(u8, strings.trim(feature_raw), '\n');
@@ -786,7 +786,7 @@ fn validatePlanStack(allocator: std.mem.Allocator, plan: types.Plan) !void {
         if (name.len == 0) continue;
         if (planned_set.contains(name)) continue;
         if (isBranchInRange(allocator, current.base_commit, current.head_commit, name)) {
-            return types.JengaError.InvalidPlan;
+            return types.RestackError.InvalidPlan;
         }
     }
 }
@@ -865,11 +865,11 @@ fn applyConflictResolution(allocator: std.mem.Allocator, wt_path: []const u8, co
                     "160000",
                     hash,
                     file.path,
-                }) catch return types.JengaError.GitCommandFailed;
+                }) catch return types.RestackError.GitCommandFailed;
                 defer allocator.free(result.stdout);
                 defer allocator.free(result.stderr);
                 if (result.exit_code != 0) {
-                    return types.JengaError.GitCommandFailed;
+                    return types.RestackError.GitCommandFailed;
                 }
                 continue;
             }
@@ -883,7 +883,7 @@ fn applyConflictResolution(allocator: std.mem.Allocator, wt_path: []const u8, co
             const content = switch (file.resolution.encoding) {
                 .text => try allocator.dupe(u8, file.resolution.content),
                 .base64 => try decodeBase64(allocator, file.resolution.content),
-                .gitlink => return types.JengaError.ParseError,
+                .gitlink => return types.RestackError.ParseError,
             };
             defer allocator.free(content);
 
@@ -922,7 +922,7 @@ fn applyConflictResolution(allocator: std.mem.Allocator, wt_path: []const u8, co
         allocator.free(remaining);
     }
     if (remaining.len > 0) {
-        return types.JengaError.ConflictDetected;
+        return types.RestackError.ConflictDetected;
     }
 }
 
@@ -939,13 +939,13 @@ fn removePath(path: []const u8) void {
 fn decodeBase64(allocator: std.mem.Allocator, content: []const u8) ![]u8 {
     const trimmed = strings.trim(content);
     const decoded_len = std.base64.standard.Decoder.calcSizeForSlice(trimmed) catch {
-        return types.JengaError.ParseError;
+        return types.RestackError.ParseError;
     };
     const decoded = try allocator.alloc(u8, decoded_len);
     errdefer allocator.free(decoded);
 
     std.base64.standard.Decoder.decode(decoded, trimmed) catch {
-        return types.JengaError.ParseError;
+        return types.RestackError.ParseError;
     };
     return decoded;
 }
@@ -1131,20 +1131,20 @@ fn showFutureDiffs(allocator: std.mem.Allocator, wt_path: []const u8, plan: type
 
 fn printHelp() void {
     std.debug.print(
-        \\Usage: git-jenga exec [plan.yml] [OPTIONS]
+        \\Usage: git-restack exec [plan.yml] [OPTIONS]
         \\
         \\Executes a restacking plan.
         \\Refuses to run if plan contains non-empty 'errors' block.
         \\
         \\If the plan contains a verify_cmd, it will be run after each commit
-        \\(both cherry-picks and fix commits). Use 'git-jenga plan --verify <cmd>'
+        \\(both cherry-picks and fix commits). Use 'git-restack plan --verify <cmd>'
         \\to set the verification command when generating the plan.
         \\
         \\Arguments:
-        \\  plan.yml                 Plan file (default: .git/git-jenga/plan.yml)
+        \\  plan.yml                 Plan file (default: .git/git-restack/plan.yml)
         \\
         \\Options:
-        \\  --worktree-path <path>   Where to create worktree (default: ../<repo>-jenga)
+        \\  --worktree-path <path>   Where to create worktree (default: ../<repo>-restack)
         \\  --continue               Continue after resolving conflicts
         \\  --abort                  Abort execution and clean up
         \\  -f, --force              Force remove existing worktree

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-iterative-conflicts"
+TARGET_DIR="../git-restack-test-space-text-conflict"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,46 +31,41 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-cat > shared.txt <<'EOF'
-line one
-line two
+cat > "notes space.txt" <<'EOF'
+line1
+line2
+line3
 EOF
-git add shared.txt
-git commit -q -m "Base shared.txt"
+git add "notes space.txt"
+git commit -q -m "Base notes space.txt"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-iter
-cat > shared.txt <<'EOF'
-line one feature1
-line two
+git checkout -q -b feature/TEST-1-space
+cat > "notes space.txt" <<'EOF'
+line1
+line2-feature
+line3
 EOF
-git add shared.txt
-git commit -q -m "Feature1 edits line one"
+git add "notes space.txt"
+git commit -q -m "Feature edits line2"
 
-git checkout -q -b feature/TEST-2-iter
-cat > shared.txt <<'EOF'
-line one feature2
-line two
-EOF
-git add shared.txt
-git commit -q -m "Feature2 edits line one"
-
-git checkout -q -b feature/TEST-3-top
+git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
 git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-cat > shared.txt <<'EOF'
-line one main
-line two
+cat > "notes space.txt" <<'EOF'
+line1
+line2-main
+line3
 EOF
-git add shared.txt
-git commit -q -m "Main edits line one"
+git add "notes space.txt"
+git commit -q -m "Main edits line2"
 
-git checkout -q feature/TEST-3-top
+git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -88,5 +83,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

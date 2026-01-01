@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test"
+TARGET_DIR="../git-restack-test-multi-conflict"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,19 +31,18 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-echo "# git-jenga test repo" > README.md
-git add README.md
-git commit -q -m "Initial commit"
+echo "# Multi-conflict repo" > README.md
+echo "base a" > file_a.txt
+echo "base b" > file_b.txt
+git add README.md file_a.txt file_b.txt
+git commit -q -m "Base files"
 git branch -M main
 
-echo "base" > conflict.txt
-git add conflict.txt
-git commit -q -m "Add conflict.txt"
-
-git checkout -q -b feature/TEST-1-base
-echo "feature change" > conflict.txt
-git add conflict.txt
-git commit -q -m "Feature modifies conflict.txt"
+git checkout -q -b feature/TEST-1-multi
+echo "feature a" >> file_a.txt
+echo "feature b" >> file_b.txt
+git add file_a.txt file_b.txt
+git commit -q -m "Feature edits both files"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -51,13 +50,14 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-echo "main change" > conflict.txt
-git add conflict.txt
-git commit -q -m "Main modifies conflict.txt"
+echo "main a" >> file_a.txt
+echo "main b" >> file_b.txt
+git add file_a.txt file_b.txt
+git commit -q -m "Main edits both files"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -75,5 +75,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

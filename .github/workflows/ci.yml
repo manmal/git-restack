@@ -26,4 +26,4 @@ jobs:
         run: ./test/run_integration_tests.sh
 
       - name: Real-world tests
-        run: ./scripts/run_real_world_tests.sh
+        run: ./test/run_real_world_tests.sh

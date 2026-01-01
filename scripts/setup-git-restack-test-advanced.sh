@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-advanced"
+TARGET_DIR="../git-restack-test-advanced"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,7 +31,7 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-echo "# Advanced git-jenga test repo" > README.md
+echo "# Advanced git-restack test repo" > README.md
 echo "alpha base" > alpha.txt
 printf '%s\n' "#!/bin/sh" "echo base" > run.sh
 chmod -x run.sh
@@ -72,7 +72,7 @@ git commit -q -m "Modify run.sh on main"
 
 git checkout -q feature/TEST-3-mode
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -90,5 +90,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

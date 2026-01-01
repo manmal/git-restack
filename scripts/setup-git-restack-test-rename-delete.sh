@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-add-add-binary"
+TARGET_DIR="../git-restack-test-rename-delete"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,15 +31,17 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-echo "# Add/add binary conflict" > README.md
-git add README.md
-git commit -q -m "Base README"
+echo "# Rename/Delete repo" > README.md
+echo "base" > doc.txt
+git add README.md doc.txt
+git commit -q -m "Base files"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-add-binary
-printf '\x00\x01feature' > blob.bin
-git add blob.bin
-git commit -q -m "Feature adds blob.bin"
+git checkout -q -b feature/TEST-1-rename
+git mv doc.txt doc_feature.txt
+echo "feature rename" >> doc_feature.txt
+git add doc_feature.txt
+git commit -q -m "Rename doc.txt on feature"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -47,13 +49,12 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-printf '\x00\x02main' > blob.bin
-git add blob.bin
-git commit -q -m "Main adds blob.bin"
+git rm -q doc.txt
+git commit -q -m "Delete doc.txt on main"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-theirs"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -62,7 +63,7 @@ REMOTE="$2"
 BASE="$3"
 MERGED="$4"
 
-cp "$LOCAL" "$MERGED"
+cp "$REMOTE" "$MERGED"
 exit 0
 EOF
 chmod +x "$SCRIPT_PATH"
@@ -71,5 +72,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

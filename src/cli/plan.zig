@@ -6,9 +6,9 @@ const emitter = @import("../yaml/emitter.zig");
 const strings = @import("../utils/strings.zig");
 const process = @import("../utils/process.zig");
 
-const STATE_DIR = ".git/git-jenga";
-const DEFAULT_PLAN_FILE = ".git/git-jenga/plan.yml";
-const DEFAULT_PLAN_WORKTREE_SUFFIX = "-jenga-plan";
+const STATE_DIR = ".git/git-restack";
+const DEFAULT_PLAN_FILE = ".git/git-restack/plan.yml";
+const DEFAULT_PLAN_WORKTREE_SUFFIX = "-restack-plan";
 
 pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     var output_file: []const u8 = DEFAULT_PLAN_FILE;
@@ -74,10 +74,10 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     std.debug.print("Analyzing branch stack...\n", .{});
     var stack = stack_mod.analyzeStack(allocator) catch |err| {
         switch (err) {
-            types.JengaError.GitCommandFailed => {
+            types.RestackError.GitCommandFailed => {
                 std.debug.print("Error: Git command failed. Are you in a git repository?\n", .{});
             },
-            types.JengaError.BaseBranchNotFound => {
+            types.RestackError.BaseBranchNotFound => {
                 std.debug.print("Error: Could not find 'develop' or 'main' base branch.\n", .{});
             },
             else => {
@@ -270,10 +270,10 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             },
         ) catch |err| {
             switch (err) {
-                types.JengaError.WorktreeExists => {
+                types.RestackError.WorktreeExists => {
                     std.debug.print("Error: Plan worktree already exists. Use --force or cleanup first.\n", .{});
                 },
-                types.JengaError.ConflictDetected => {
+                types.RestackError.ConflictDetected => {
                     std.debug.print("Error: Conflict resolution aborted.\n", .{});
                 },
                 else => {
@@ -336,7 +336,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             std.debug.print("     {s}\n\n", .{err.message});
         }
 
-        std.debug.print("Fix these in {s}, then run: git-jenga exec {s}\n", .{ output_file, output_file });
+        std.debug.print("Fix these in {s}, then run: git-restack exec {s}\n", .{ output_file, output_file });
         std.process.exit(1);
     } else {
         var fix_count: usize = 0;
@@ -348,7 +348,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             std.debug.print("\nNo changes to apply. All files already in correct branches.\n", .{});
         } else {
             std.debug.print("\n\x1b[32mSuccess:\x1b[0m {d} branches will receive fixes.\n", .{fix_count});
-            std.debug.print("Review the plan and run: git-jenga exec {s}\n", .{output_file});
+            std.debug.print("Review the plan and run: git-restack exec {s}\n", .{output_file});
         }
     }
 }
@@ -386,7 +386,7 @@ fn simulateConflicts(
     errdefer simulation.deinit(allocator);
 
     const timestamp = std.time.milliTimestamp();
-    const plan_branch = try std.fmt.allocPrint(allocator, "git-jenga-plan-{d}", .{timestamp});
+    const plan_branch = try std.fmt.allocPrint(allocator, "git-restack-plan-{d}", .{timestamp});
     simulation.plan_branch = plan_branch;
 
     const cwd = try process.getCwd(allocator);
@@ -430,7 +430,7 @@ fn simulateConflicts(
 
         if (worktreeExists(wt_path)) {
             if (!options.force) {
-                return types.JengaError.WorktreeExists;
+                return types.RestackError.WorktreeExists;
             }
             if (process.runGit(allocator, &.{ "worktree", "remove", wt_path, "--force" })) |output| {
                 allocator.free(output);
@@ -452,7 +452,7 @@ fn simulateConflicts(
             defer allocator.free(result.stdout);
             defer allocator.free(result.stderr);
             if (result.stdout.len > 0) {
-                if (process.runGit(allocator, &.{ "stash", "push", "-u", "-m", "git-jenga-plan" })) |output| {
+                if (process.runGit(allocator, &.{ "stash", "push", "-u", "-m", "git-restack-plan" })) |output| {
                     allocator.free(output);
                 } else |_| {}
                 stashed = true;
@@ -460,7 +460,7 @@ fn simulateConflicts(
         }
 
         for (branches) |branch| {
-            const backup_name = try std.fmt.allocPrint(allocator, "{s}-jenga-backup-{d}", .{ branch.name, timestamp });
+            const backup_name = try std.fmt.allocPrint(allocator, "{s}-restack-backup-{d}", .{ branch.name, timestamp });
             const branch_out = process.runGit(allocator, &.{ "branch", backup_name, branch.name }) catch |err| {
                 allocator.free(backup_name);
                 return err;
@@ -573,11 +573,11 @@ fn simulateConflicts(
                             defer allocator.free(skip_result.stderr);
                             if (skip_result.exit_code != 0) {
                                 std.debug.print("Error: Cherry-pick --skip failed.\n", .{});
-                                return types.JengaError.ConflictDetected;
+                                return types.RestackError.ConflictDetected;
                             }
                         } else {
                             std.debug.print("Error: Cherry-pick --continue failed.\n", .{});
-                            return types.JengaError.ConflictDetected;
+                            return types.RestackError.ConflictDetected;
                         }
                     }
                 }
@@ -587,7 +587,7 @@ fn simulateConflicts(
         if (branch.needs_fix) {
             if (branch.fix) |fix| {
                 for (fix.files) |file| {
-                    const tmp_path = try std.fmt.allocPrint(allocator, "{s}/.git-jenga-patch", .{sim_path});
+                    const tmp_path = try std.fmt.allocPrint(allocator, "{s}/.git-restack-patch", .{sim_path});
                     defer allocator.free(tmp_path);
 
                     const tmp_file = try std.fs.cwd().createFile(tmp_path, .{});
@@ -675,7 +675,7 @@ fn resolveConflict(allocator: std.mem.Allocator, ctx: ConflictContext) !types.Pl
     }
 
     if (conflict_paths.len == 0) {
-        return types.JengaError.ConflictDetected;
+        return types.RestackError.ConflictDetected;
     }
 
     for (conflict_paths) |path| {
@@ -718,10 +718,10 @@ fn resolveConflict(allocator: std.mem.Allocator, ctx: ConflictContext) !types.Pl
         const input = try readLine(allocator);
         defer allocator.free(input);
         if (input.len == 0 and !std.fs.File.stdin().isTty()) {
-            return types.JengaError.ConflictDetected;
+            return types.RestackError.ConflictDetected;
         }
         if (std.mem.eql(u8, strings.trim(input), "abort")) {
-            return types.JengaError.ConflictDetected;
+            return types.RestackError.ConflictDetected;
         }
     }
 
@@ -1236,12 +1236,12 @@ fn parsePlanMode(value: []const u8) types.PlanMode {
 
 fn printHelp() void {
     std.debug.print(
-        \\Usage: git-jenga plan [OPTIONS]
+        \\Usage: git-restack plan [OPTIONS]
         \\
         \\Analyzes staged and unstaged changes, maps them to target branches.
         \\
         \\Options:
-        \\  -o, --output <file>      Write plan to file (default: .git/git-jenga/plan.yml)
+        \\  -o, --output <file>      Write plan to file (default: .git/git-restack/plan.yml)
         \\  --verify <cmd>           Command to run after each commit during exec
         \\  --verify-only <cmd>      Restack without changes, only run verification
         \\  --staged-only            Only analyze staged changes
@@ -1258,9 +1258,9 @@ fn printHelp() void {
         \\  1 - Unmapped files detected. Plan generated with 'errors' block.
         \\
         \\Examples:
-        \\  git-jenga plan --verify "swift build"
-        \\  git-jenga plan --verify "npm test"
-        \\  git-jenga plan --verify-only "make lint && make test"
+        \\  git-restack plan --verify "swift build"
+        \\  git-restack plan --verify "npm test"
+        \\  git-restack plan --verify-only "make lint && make test"
         \\
     , .{});
 }

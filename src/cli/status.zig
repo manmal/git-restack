@@ -2,7 +2,7 @@ const std = @import("std");
 const types = @import("../types.zig");
 const parser = @import("../yaml/parser.zig");
 
-const STATE_FILE = ".git/git-jenga/state.json";
+const STATE_FILE = ".git/git-restack/state.json";
 
 pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     var plan_file: ?[]const u8 = null;
@@ -24,7 +24,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             try showPlanStatus(allocator, pf);
         } else {
             std.debug.print("No execution in progress.\n", .{});
-            std.debug.print("Run 'git-jenga plan' to generate a plan.\n", .{});
+            std.debug.print("Run 'git-restack plan' to generate a plan.\n", .{});
         }
         return;
     };
@@ -70,19 +70,19 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             std.debug.print("  git add <resolved_files>\n", .{});
             std.debug.print("  git cherry-pick --continue\n", .{});
             std.debug.print("  cd -\n", .{});
-            std.debug.print("  git-jenga exec {s} --continue\n", .{state.plan_file});
+            std.debug.print("  git-restack exec {s} --continue\n", .{state.plan_file});
         },
         .in_progress => {
             std.debug.print("Execution in progress.\n", .{});
-            std.debug.print("Resume with: git-jenga exec {s} --continue\n", .{state.plan_file});
-            std.debug.print("Or abort:    git-jenga exec {s} --abort\n", .{state.plan_file});
+            std.debug.print("Resume with: git-restack exec {s} --continue\n", .{state.plan_file});
+            std.debug.print("Or abort:    git-restack exec {s} --abort\n", .{state.plan_file});
         },
         .completed => {
             std.debug.print("\x1b[32mExecution completed successfully!\x1b[0m\n", .{});
         },
         .failed => {
             std.debug.print("\x1b[31mExecution failed.\x1b[0m\n", .{});
-            std.debug.print("Abort with: git-jenga exec {s} --abort\n", .{state.plan_file});
+            std.debug.print("Abort with: git-restack exec {s} --abort\n", .{state.plan_file});
         },
         else => {},
     }
@@ -153,7 +153,7 @@ fn showPlanStatus(allocator: std.mem.Allocator, plan_file: []const u8) !void {
     if (plan.errors.len > 0) {
         std.debug.print("\x1b[33mFix errors in plan before executing.\x1b[0m\n", .{});
     } else if (needs_fix_count > 0) {
-        std.debug.print("Ready to execute: git-jenga exec {s}\n", .{plan_file});
+        std.debug.print("Ready to execute: git-restack exec {s}\n", .{plan_file});
     } else {
         std.debug.print("No changes needed.\n", .{});
     }
@@ -161,9 +161,9 @@ fn showPlanStatus(allocator: std.mem.Allocator, plan_file: []const u8) !void {
 
 fn printHelp() void {
     std.debug.print(
-        \\Usage: git-jenga status [plan.yml]
+        \\Usage: git-restack status [plan.yml]
         \\
-        \\Shows execution status. Reads from .git/git-jenga/state.json if no plan specified.
+        \\Shows execution status. Reads from .git/git-restack/state.json if no plan specified.
         \\
         \\Options:
         \\  -h, --help    Show this help message

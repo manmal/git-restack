@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-multi-conflict"
+TARGET_DIR="../git-restack-test-iterative-conflicts"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,33 +31,46 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-echo "# Multi-conflict repo" > README.md
-echo "base a" > file_a.txt
-echo "base b" > file_b.txt
-git add README.md file_a.txt file_b.txt
-git commit -q -m "Base files"
+cat > shared.txt <<'EOF'
+line one
+line two
+EOF
+git add shared.txt
+git commit -q -m "Base shared.txt"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-multi
-echo "feature a" >> file_a.txt
-echo "feature b" >> file_b.txt
-git add file_a.txt file_b.txt
-git commit -q -m "Feature edits both files"
+git checkout -q -b feature/TEST-1-iter
+cat > shared.txt <<'EOF'
+line one feature1
+line two
+EOF
+git add shared.txt
+git commit -q -m "Feature1 edits line one"
 
-git checkout -q -b feature/TEST-2-top
+git checkout -q -b feature/TEST-2-iter
+cat > shared.txt <<'EOF'
+line one feature2
+line two
+EOF
+git add shared.txt
+git commit -q -m "Feature2 edits line one"
+
+git checkout -q -b feature/TEST-3-top
 echo "top" > top.txt
 git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-echo "main a" >> file_a.txt
-echo "main b" >> file_b.txt
-git add file_a.txt file_b.txt
-git commit -q -m "Main edits both files"
+cat > shared.txt <<'EOF'
+line one main
+line two
+EOF
+git add shared.txt
+git commit -q -m "Main edits line one"
 
-git checkout -q feature/TEST-2-top
+git checkout -q feature/TEST-3-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -75,5 +88,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

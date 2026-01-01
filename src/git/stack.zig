@@ -21,7 +21,7 @@ pub fn analyzeStack(allocator: std.mem.Allocator) !types.Stack {
     } else if (checkBranchExists(allocator, "main")) {
         base_branch = try strings.copy(allocator, "main");
     } else {
-        return types.JengaError.BaseBranchNotFound;
+        return types.RestackError.BaseBranchNotFound;
     }
 
     // 4. Get base branch tip

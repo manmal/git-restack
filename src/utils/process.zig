@@ -19,7 +19,7 @@ pub fn runGit(allocator: std.mem.Allocator, args: []const []const u8) ![]const u
             std.debug.print("git error: {s}\n", .{result.stderr});
         }
         allocator.free(result.stdout);
-        return types.JengaError.GitCommandFailed;
+        return types.RestackError.GitCommandFailed;
     }
 
     return result.stdout;
@@ -43,7 +43,7 @@ pub fn runGitWithStatus(allocator: std.mem.Allocator, args: []const []const u8) 
         .max_output_bytes = 10 * 1024 * 1024,
     }) catch |err| {
         std.debug.print("Failed to run git: {any}\n", .{err});
-        return types.JengaError.ProcessError;
+        return types.RestackError.ProcessError;
     };
 
     const exit_code: u8 = switch (result.term) {
@@ -93,7 +93,7 @@ pub fn runGitInDir(allocator: std.mem.Allocator, dir: []const u8, args: []const 
         .max_output_bytes = 10 * 1024 * 1024,
     }) catch |err| {
         std.debug.print("Failed to run git: {any}\n", .{err});
-        return types.JengaError.ProcessError;
+        return types.RestackError.ProcessError;
     };
     defer allocator.free(result.stderr);
 
@@ -107,7 +107,7 @@ pub fn runGitInDir(allocator: std.mem.Allocator, dir: []const u8, args: []const 
             std.debug.print("git error: {s}\n", .{result.stderr});
         }
         allocator.free(result.stdout);
-        return types.JengaError.GitCommandFailed;
+        return types.RestackError.GitCommandFailed;
     }
 
     return result.stdout;

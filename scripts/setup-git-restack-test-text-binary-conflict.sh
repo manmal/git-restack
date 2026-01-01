@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="../git-jenga-test-empty-cherry-pick"
+TARGET_DIR="../git-restack-test-text-binary-conflict"
 FORCE=0
 
 while [ $# -gt 0 ]; do
@@ -31,21 +31,25 @@ git init -q
 git config user.email "test@test.com"
 git config user.name "Test User"
 
-cat > shared.txt <<'EOF'
-line one
-line two
+cat > note.txt <<'EOF'
+alpha
+beta
+gamma
 EOF
-git add shared.txt
-git commit -q -m "Base shared.txt"
+printf '\x00\x01base' > blob.bin
+git add note.txt blob.bin
+git commit -q -m "Base note.txt and blob.bin"
 git branch -M main
 
-git checkout -q -b feature/TEST-1-empty
-cat > shared.txt <<'EOF'
-line one feature
-line two
+git checkout -q -b feature/TEST-1-text-binary
+cat > note.txt <<'EOF'
+alpha
+beta feature
+gamma
 EOF
-git add shared.txt
-git commit -q -m "Feature edits line one"
+printf '\x00\x02feature' > blob.bin
+git add note.txt blob.bin
+git commit -q -m "Feature edits text and binary"
 
 git checkout -q -b feature/TEST-2-top
 echo "top" > top.txt
@@ -53,16 +57,18 @@ git add top.txt
 git commit -q -m "Add top.txt"
 
 git checkout -q main
-cat > shared.txt <<'EOF'
-line one main
-line two
+cat > note.txt <<'EOF'
+alpha
+beta main
+gamma
 EOF
-git add shared.txt
-git commit -q -m "Main edits line one"
+printf '\x00\x03main' > blob.bin
+git add note.txt blob.bin
+git commit -q -m "Main edits text and binary"
 
 git checkout -q feature/TEST-2-top
 
-TOOL="jenga-ours"
+TOOL="restack-ours"
 SCRIPT_PATH="$PWD/.git/${TOOL}.sh"
 cat > "$SCRIPT_PATH" <<'EOF'
 #!/usr/bin/env bash
@@ -71,7 +77,8 @@ REMOTE="$2"
 BASE="$3"
 MERGED="$4"
 
-exit 1
+cp "$LOCAL" "$MERGED"
+exit 0
 EOF
 chmod +x "$SCRIPT_PATH"
 
@@ -79,5 +86,5 @@ git config mergetool.$TOOL.cmd "$SCRIPT_PATH \"\\\$LOCAL\" \"\\\$REMOTE\" \"\\\$
 git config mergetool.$TOOL.trustExitCode true
 
 echo "Ready: $TARGET_DIR"
-echo "Next: git-jenga plan --mergetool $TOOL --force"
-echo "Then: git-jenga exec --force"
+echo "Next: git-restack plan --mergetool $TOOL --force"
+echo "Then: git-restack exec --force"

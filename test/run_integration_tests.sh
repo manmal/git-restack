@@ -1,5 +1,5 @@
 #!/bin/bash
-# Integration tests for git-jenga
+# Integration tests for git-restack
 # These tests create real git repos and test the full round-trip
 
 # Colors
@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-JENGA="$PROJECT_ROOT/zig-out/bin/git-jenga"
+RESTACK="$PROJECT_ROOT/zig-out/bin/git-restack"
 
 # Test counter
 TESTS_RUN=0
@@ -19,8 +19,8 @@ TESTS_PASSED=0
 TESTS_FAILED=0
 
 # Ensure binary is built
-if [ ! -f "$JENGA" ]; then
-    echo "Building git-jenga..."
+if [ ! -f "$RESTACK" ]; then
+    echo "Building git-restack..."
     cd "$PROJECT_ROOT" && zig build
 fi
 
@@ -64,7 +64,7 @@ run_test() {
 # Configure a mergetool that auto-resolves using ours/theirs.
 setup_auto_mergetool() {
     local mode=${1:-ours}
-    local tool="jenga-${mode}"
+    local tool="restack-${mode}"
     local script_path="$PWD/.git/${tool}.sh"
 
     cat > "$script_path" <<'EOF'
@@ -116,7 +116,7 @@ test_stack_simple() {
     git add . && git commit -q -m "Add feature 2"
     
     # Run stack command
-    local output=$("$JENGA" stack 2>&1)
+    local output=$("$RESTACK" stack 2>&1)
     local code=$?
     
     [ $code -eq 0 ] || { echo "Bad exit code: $code"; return 1; }
@@ -138,7 +138,7 @@ test_stack_json() {
     echo "Content" > file.txt
     git add . && git commit -q -m "Add file"
     
-    local output=$("$JENGA" stack --json 2>&1)
+    local output=$("$RESTACK" stack --json 2>&1)
     local code=$?
     
     [ $code -eq 0 ] || return 1
@@ -163,7 +163,7 @@ test_plan_generates_yaml() {
     echo "Modified" >> feature.txt
     
     # Run plan
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1
     
     # Check plan file exists and has expected content
     [ -f test-plan.yml ] || { echo "Plan file not created"; return 1; }
@@ -190,7 +190,7 @@ test_plan_unmapped_files() {
     git add brand_new.txt
     
     # Run plan - should exit with code 1 due to unmapped file
-    "$JENGA" plan -o test-plan.yml > /tmp/plan_out.txt 2>&1
+    "$RESTACK" plan -o test-plan.yml > /tmp/plan_out.txt 2>&1
     local code=$?
     
     [ $code -eq 1 ] || { echo "Expected exit 1, got $code"; return 1; }
@@ -216,10 +216,10 @@ test_exec_refuses_errors() {
     git add new.txt
     
     # Generate plan with errors
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1 || true
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1 || true
     
     # Try to execute - should fail with exit code 3
-    "$JENGA" exec test-plan.yml > /tmp/exec_out.txt 2>&1
+    "$RESTACK" exec test-plan.yml > /tmp/exec_out.txt 2>&1
     local code=$?
     
     [ $code -eq 3 ] || { echo "Expected exit 3, got $code"; return 1; }
@@ -247,10 +247,10 @@ test_exec_no_conflicts() {
     echo "Modified" >> base.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1
     
     # Execute plan
-    local output=$("$JENGA" exec test-plan.yml --force 2>&1)
+    local output=$("$RESTACK" exec test-plan.yml --force 2>&1)
     local code=$?
     
     # Check success
@@ -271,7 +271,7 @@ test_exec_abort() {
     git branch -M main
     
     # Abort without any execution should fail
-    "$JENGA" exec --abort > /tmp/abort_out.txt 2>&1
+    "$RESTACK" exec --abort > /tmp/abort_out.txt 2>&1
     local code=$?
     
     [ $code -eq 1 ] || { echo "Exit code was $code, expected 1"; return 1; }
@@ -294,10 +294,10 @@ test_status_plan() {
     echo "Modified" >> feature.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1
     
     # Check status
-    local output=$("$JENGA" status test-plan.yml 2>&1)
+    local output=$("$RESTACK" status test-plan.yml 2>&1)
     local code=$?
     
     [ $code -eq 0 ] || return 1
@@ -318,7 +318,7 @@ test_develop_base() {
     echo "Feature" > feature.txt
     git add . && git commit -q -m "Add feature"
     
-    local output=$("$JENGA" stack 2>&1)
+    local output=$("$RESTACK" stack 2>&1)
     local code=$?
     
     [ $code -eq 0 ] || return 1
@@ -340,7 +340,7 @@ test_deep_stack() {
         git add . && git commit -q -m "Add layer $i"
     done
     
-    local output=$("$JENGA" stack 2>&1)
+    local output=$("$RESTACK" stack 2>&1)
     local code=$?
     
     [ $code -eq 0 ] || return 1
@@ -358,7 +358,7 @@ test_continue_no_state() {
     git branch -M main
     
     # Try continue without any execution in progress
-    "$JENGA" exec --continue > /tmp/continue_out.txt 2>&1
+    "$RESTACK" exec --continue > /tmp/continue_out.txt 2>&1
     local code=$?
     
     # Should fail because no execution in progress
@@ -390,7 +390,7 @@ test_multi_file_mapping() {
     echo "Modified UI" >> ui.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1
     
     # Both files should be in the plan
     grep -q "api.txt" test-plan.yml || return 1
@@ -419,7 +419,7 @@ test_staged_and_unstaged() {
     echo "Modified B" >> b.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1
     
     # Both should be detected
     grep -q "a.txt" test-plan.yml || return 1
@@ -433,11 +433,11 @@ test_staged_and_unstaged() {
 # TEST: Help commands work
 # ============================================================================
 test_help_commands() {
-    "$JENGA" --help >/dev/null 2>&1 || return 1
-    "$JENGA" stack --help >/dev/null 2>&1 || return 1
-    "$JENGA" plan --help >/dev/null 2>&1 || return 1
-    "$JENGA" exec --help >/dev/null 2>&1 || return 1
-    "$JENGA" status --help >/dev/null 2>&1 || return 1
+    "$RESTACK" --help >/dev/null 2>&1 || return 1
+    "$RESTACK" stack --help >/dev/null 2>&1 || return 1
+    "$RESTACK" plan --help >/dev/null 2>&1 || return 1
+    "$RESTACK" exec --help >/dev/null 2>&1 || return 1
+    "$RESTACK" status --help >/dev/null 2>&1 || return 1
     return 0
 }
 
@@ -445,8 +445,8 @@ test_help_commands() {
 # TEST: Version command
 # ============================================================================
 test_version() {
-    local output=$("$JENGA" --version 2>&1)
-    echo "$output" | grep -q "git-jenga" || return 1
+    local output=$("$RESTACK" --version 2>&1)
+    echo "$output" | grep -q "git-restack" || return 1
     return 0
 }
 
@@ -463,7 +463,7 @@ test_no_changes() {
     git add . && git commit -q -m "Add feature"
     
     # No changes made - generate plan
-    "$JENGA" plan -o test-plan.yml > /tmp/plan_out.txt 2>&1
+    "$RESTACK" plan -o test-plan.yml > /tmp/plan_out.txt 2>&1
     local code=$?
     
     [ $code -eq 0 ] || { echo "Exit code was $code"; return 1; }
@@ -487,7 +487,7 @@ test_deleted_file() {
     rm delete_me.txt
     
     # Generate plan
-    "$JENGA" plan -o test-plan.yml > /tmp/plan_out.txt 2>&1
+    "$RESTACK" plan -o test-plan.yml > /tmp/plan_out.txt 2>&1
     
     grep -q "delete_me.txt" test-plan.yml || { echo "Deleted file not in plan"; return 1; }
     grep -q "change_type: deleted" test-plan.yml || { echo "Expected change_type: deleted"; return 1; }
@@ -512,7 +512,7 @@ test_non_jira_branch() {
     echo "Feature" > feature.txt
     git add . && git commit -q -m "Add feature"
     
-    "$JENGA" stack > /tmp/stack_out.txt 2>&1
+    "$RESTACK" stack > /tmp/stack_out.txt 2>&1
     local code=$?
     
     [ $code -eq 0 ] || return 1
@@ -546,7 +546,7 @@ test_stack_from_middle() {
     # Go back to middle branch and check stack
     git checkout -q feature/TEST-2-middle
     
-    "$JENGA" stack > /tmp/stack_out.txt 2>&1
+    "$RESTACK" stack > /tmp/stack_out.txt 2>&1
     local code=$?
     
     [ $code -eq 0 ] || return 1
@@ -572,11 +572,11 @@ test_worktree_created() {
     
     echo "Modified" >> feature.txt
     
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
-    "$JENGA" exec test-plan.yml --force >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1
+    "$RESTACK" exec test-plan.yml --force >/dev/null 2>&1
     
     # Check that worktree dir exists and has expected structure
-    local worktree_dir=$(pwd)-jenga
+    local worktree_dir=$(pwd)-restack
     [ -d "$worktree_dir" ] || { echo "Worktree dir not created"; return 1; }
     [ -f "$worktree_dir/feature.txt" ] || { echo "feature.txt not in worktree"; return 1; }
     return 0
@@ -596,7 +596,7 @@ test_plan_output_path() {
     
     # Test nested output path
     mkdir -p plans/subdir
-    "$JENGA" plan -o plans/subdir/my-plan.yml >/dev/null 2>&1
+    "$RESTACK" plan -o plans/subdir/my-plan.yml >/dev/null 2>&1
     
     [ -f plans/subdir/my-plan.yml ] || { echo "Plan not created at nested path"; return 1; }
     grep -q "version: 2" plans/subdir/my-plan.yml || return 1
@@ -629,14 +629,14 @@ test_diffs_applied() {
     echo "line3" >> myfile.txt
     
     # Generate and execute plan
-    "$JENGA" plan -o test-plan.yml >/dev/null 2>&1
-    "$JENGA" exec test-plan.yml --force >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml >/dev/null 2>&1
+    "$RESTACK" exec test-plan.yml --force >/dev/null 2>&1
     local code=$?
     
     [ $code -eq 0 ] || { echo "Exec failed with code $code"; return 1; }
     
     # Find the worktree
-    local wt_path="../$(basename $(pwd))-jenga"
+    local wt_path="../$(basename $(pwd))-restack"
     [ -d "$wt_path" ] || { echo "Worktree not found at $wt_path"; return 1; }
     
     # Check out the -fix branch and verify the file content
@@ -682,13 +682,13 @@ test_verify_runs_per_branch() {
     rm -f "$verify_log"
     
     # Generate plan with verify command that logs to file
-    "$JENGA" plan -o test-plan.yml --verify "echo \$(git rev-parse --short HEAD) >> $verify_log" >/dev/null 2>&1
+    "$RESTACK" plan -o test-plan.yml --verify "echo \$(git rev-parse --short HEAD) >> $verify_log" >/dev/null 2>&1
     
     # Verify the plan has verify_cmd
     grep -q 'verify_cmd:' test-plan.yml || { echo "verify_cmd not in plan"; return 1; }
     
     # Execute plan
-    "$JENGA" exec test-plan.yml --force >/dev/null 2>&1
+    "$RESTACK" exec test-plan.yml --force >/dev/null 2>&1
     local code=$?
     
     [ $code -eq 0 ] || { echo "Exec failed with code $code"; return 1; }
@@ -734,8 +734,8 @@ test_apply_resets_branches() {
     echo "MODIFIED" >> myfile.txt
     
     # Generate and execute plan
-    "$JENGA" plan -o plan.yml >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
-    "$JENGA" exec plan.yml --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
+    "$RESTACK" plan -o plan.yml >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    "$RESTACK" exec plan.yml --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
     
     # Discard uncommitted changes and switch to main so we're not on a branch we're trying to update
     git checkout -- . 
@@ -746,7 +746,7 @@ test_apply_resets_branches() {
     [ "$original_test1" != "$fix_test1" ] || { echo "-fix branch should have different commit"; return 1; }
     
     # Now apply - this should reset original branches to -fix branches
-    "$JENGA" apply plan.yml >/dev/null 2>&1
+    "$RESTACK" apply plan.yml >/dev/null 2>&1
     local code=$?
     [ $code -eq 0 ] || { echo "Apply failed with code $code"; return 1; }
     
@@ -793,16 +793,16 @@ test_verify_only_mode() {
     rm -f "$verify_log"
     
     # Generate plan with --verify-only
-    "$JENGA" plan --verify-only "echo \$(git rev-parse --short HEAD) >> $verify_log" >/dev/null 2>&1
+    "$RESTACK" plan --verify-only "echo \$(git rev-parse --short HEAD) >> $verify_log" >/dev/null 2>&1
     local code=$?
     [ $code -eq 0 ] || { echo "Plan failed with code $code"; return 1; }
     
     # Verify the plan has verify_cmd but no fixes
-    grep -q 'verify_cmd:' .git/git-jenga/plan.yml || { echo "verify_cmd not in plan"; return 1; }
-    grep -q 'needs_fix: true' .git/git-jenga/plan.yml && { echo "Should not have needs_fix: true"; return 1; }
+    grep -q 'verify_cmd:' .git/git-restack/plan.yml || { echo "verify_cmd not in plan"; return 1; }
+    grep -q 'needs_fix: true' .git/git-restack/plan.yml && { echo "Should not have needs_fix: true"; return 1; }
     
     # Execute plan
-    "$JENGA" exec --force >/dev/null 2>&1
+    "$RESTACK" exec --force >/dev/null 2>&1
     code=$?
     [ $code -eq 0 ] || { echo "Exec failed with code $code"; return 1; }
     
@@ -849,12 +849,12 @@ test_plan_auto_resolves_conflicts() {
     local tool
     tool=$(setup_auto_mergetool "ours")
     
-    "$JENGA" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
-    grep -q "conflicts:" .git/git-jenga/plan.yml || { echo "Plan missing conflicts block"; return 1; }
-    grep -q "conflict_diff:" .git/git-jenga/plan.yml || { echo "Plan missing conflict diff"; return 1; }
-    grep -q "resolution:" .git/git-jenga/plan.yml || { echo "Plan missing resolution block"; return 1; }
+    "$RESTACK" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    grep -q "conflicts:" .git/git-restack/plan.yml || { echo "Plan missing conflicts block"; return 1; }
+    grep -q "conflict_diff:" .git/git-restack/plan.yml || { echo "Plan missing conflict diff"; return 1; }
+    grep -q "resolution:" .git/git-restack/plan.yml || { echo "Plan missing resolution block"; return 1; }
     
-    "$JENGA" exec --force >/dev/null 2>&1
+    "$RESTACK" exec --force >/dev/null 2>&1
     local code=$?
     [ $code -eq 0 ] || { echo "Exec failed with code $code"; return 1; }
     
@@ -894,11 +894,11 @@ test_plan_conflict_runs_verification() {
     rm -f "$verify_log"
     
     # Generate plan with verification and conflict resolution
-    "$JENGA" plan --mergetool "$tool" --verify "echo \$(git rev-parse --short HEAD) >> $verify_log" >/dev/null 2>&1 || {
+    "$RESTACK" plan --mergetool "$tool" --verify "echo \$(git rev-parse --short HEAD) >> $verify_log" >/dev/null 2>&1 || {
         echo "Plan failed"; return 1;
     }
     
-    "$JENGA" exec --force >/dev/null 2>&1
+    "$RESTACK" exec --force >/dev/null 2>&1
     local code=$?
     [ $code -eq 0 ] || { echo "Exec failed with code $code"; return 1; }
     
@@ -933,8 +933,8 @@ test_plan_conflict_modify_delete() {
     local tool
     tool=$(setup_auto_mergetool "ours")
 
-    "$JENGA" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
-    "$JENGA" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
+    "$RESTACK" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    "$RESTACK" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
 
     return 0
 }
@@ -960,8 +960,8 @@ test_plan_conflict_add_add() {
     local tool
     tool=$(setup_auto_mergetool "ours")
 
-    "$JENGA" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
-    "$JENGA" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
+    "$RESTACK" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    "$RESTACK" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
 
     return 0
 }
@@ -989,8 +989,8 @@ test_plan_conflict_file_dir() {
     local tool
     tool=$(setup_auto_mergetool "ours")
 
-    "$JENGA" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
-    "$JENGA" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
+    "$RESTACK" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    "$RESTACK" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
 
     return 0
 }
@@ -1019,9 +1019,9 @@ test_plan_conflict_binary() {
     local tool
     tool=$(setup_auto_mergetool "ours")
 
-    "$JENGA" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
-    grep -q "encoding: base64" .git/git-jenga/plan.yml || { echo "Expected base64 encoding in plan"; return 1; }
-    "$JENGA" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
+    "$RESTACK" plan --mergetool "$tool" >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    grep -q "encoding: base64" .git/git-restack/plan.yml || { echo "Expected base64 encoding in plan"; return 1; }
+    "$RESTACK" exec --force >/dev/null 2>&1 || { echo "Exec failed"; return 1; }
 
     return 0
 }
@@ -1043,11 +1043,11 @@ test_plan_invalid_new_branch() {
     local first_commit
     first_commit=$(git rev-list --reverse HEAD | head -n1)
 
-    "$JENGA" plan >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    "$RESTACK" plan >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
 
     git branch feature/TEST-NEW "$first_commit"
 
-    "$JENGA" exec --force >/dev/null 2>&1
+    "$RESTACK" exec --force >/dev/null 2>&1
     local code=$?
     [ $code -ne 0 ] || { echo "Expected exec to fail for new branch"; return 1; }
 
@@ -1066,7 +1066,7 @@ test_plan_invalid_base_tip() {
     echo "line1" > file.txt
     git add file.txt && git commit -q -m "Add file"
 
-    "$JENGA" plan >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
+    "$RESTACK" plan >/dev/null 2>&1 || { echo "Plan failed"; return 1; }
 
     git checkout -q main
     echo "line1-main" > file.txt
@@ -1074,7 +1074,7 @@ test_plan_invalid_base_tip() {
 
     git checkout -q feature/TEST-1-first
 
-    "$JENGA" exec --force >/dev/null 2>&1
+    "$RESTACK" exec --force >/dev/null 2>&1
     local code=$?
     [ $code -ne 0 ] || { echo "Expected exec to fail after base moved"; return 1; }
 
@@ -1108,10 +1108,10 @@ test_step_single_branch() {
     echo "Modified" >> first.txt
     
     # Generate plan
-    "$JENGA" plan >/dev/null 2>&1
+    "$RESTACK" plan >/dev/null 2>&1
     
     # First step - should only process TEST-1
-    local output=$("$JENGA" step 2>&1)
+    local output=$("$RESTACK" step 2>&1)
     local code=$?
     
     [ $code -eq 0 ] || { echo "Step 1 failed with code $code"; return 1; }
@@ -1123,7 +1123,7 @@ test_step_single_branch() {
     git branch | grep -q "feature/TEST-2-second-fix" && { echo "TEST-2-fix should NOT exist yet"; return 1; }
     
     # Second step - should process TEST-2
-    output=$("$JENGA" step 2>&1)
+    output=$("$RESTACK" step 2>&1)
     code=$?
     
     [ $code -eq 0 ] || { echo "Step 2 failed with code $code"; return 1; }
@@ -1133,7 +1133,7 @@ test_step_single_branch() {
     git branch | grep -q "feature/TEST-2-second-fix" || { echo "TEST-2-fix should exist now"; return 1; }
     
     # Third step - should process TEST-3 and complete
-    output=$("$JENGA" step 2>&1)
+    output=$("$RESTACK" step 2>&1)
     code=$?
     
     [ $code -eq 0 ] || { echo "Step 3 failed with code $code"; return 1; }
@@ -1162,17 +1162,17 @@ test_step_auto_detect() {
     echo "Modified" >> auto.txt
     
     # Generate plan
-    "$JENGA" plan >/dev/null 2>&1
+    "$RESTACK" plan >/dev/null 2>&1
     
     # First step - starts fresh (creates worktree)
-    local output=$("$JENGA" step 2>&1)
+    local output=$("$RESTACK" step 2>&1)
     echo "$output" | grep -q "Creating worktree" || { echo "First step should create worktree"; return 1; }
     
     # State should exist after first step (since there are more branches)
-    [ -f .git/git-jenga/state.json ] || { echo "State file should exist after first step"; return 1; }
+    [ -f .git/git-restack/state.json ] || { echo "State file should exist after first step"; return 1; }
     
     # Second step - should continue (not recreate worktree)
-    output=$("$JENGA" step 2>&1)
+    output=$("$RESTACK" step 2>&1)
     echo "$output" | grep -q "Creating worktree" && { echo "Second step should NOT create worktree"; return 1; }
     
     return 0
@@ -1198,13 +1198,13 @@ test_step_applies_fixes() {
     echo "FIXED" > fixme.txt
     
     # Generate plan
-    "$JENGA" plan >/dev/null 2>&1
+    "$RESTACK" plan >/dev/null 2>&1
     
     # Run first step
-    "$JENGA" step >/dev/null 2>&1
+    "$RESTACK" step >/dev/null 2>&1
     
     # Check fix was applied in -fix branch
-    local wt_path="../$(basename $(pwd))-jenga"
+    local wt_path="../$(basename $(pwd))-restack"
     cd "$wt_path"
     git checkout feature/TEST-1-fix-fix >/dev/null 2>&1
     grep -q "FIXED" fixme.txt || { echo "Fix was not applied"; cat fixme.txt; return 1; }
@@ -1233,13 +1233,13 @@ test_step_preserves_mode() {
     echo "Modified" >> mode.txt
     
     # Generate plan
-    "$JENGA" plan >/dev/null 2>&1
+    "$RESTACK" plan >/dev/null 2>&1
     
     # Run step (only processes first branch, state persists)
-    "$JENGA" step >/dev/null 2>&1
+    "$RESTACK" step >/dev/null 2>&1
     
     # Check state has mode: step (JSON format)
-    grep -q '"mode": "step"' .git/git-jenga/state.json || { echo "State should have mode: step"; cat .git/git-jenga/state.json; return 1; }
+    grep -q '"mode": "step"' .git/git-restack/state.json || { echo "State should have mode: step"; cat .git/git-restack/state.json; return 1; }
     
     return 0
 }
@@ -1269,10 +1269,10 @@ test_step_chains_branches() {
     echo "MODIFIED base" >> base.txt
     
     # Generate plan and step through all
-    "$JENGA" plan >/dev/null 2>&1
-    "$JENGA" step >/dev/null 2>&1  # TEST-1
-    "$JENGA" step >/dev/null 2>&1  # TEST-2
-    "$JENGA" step >/dev/null 2>&1  # TEST-3
+    "$RESTACK" plan >/dev/null 2>&1
+    "$RESTACK" step >/dev/null 2>&1  # TEST-1
+    "$RESTACK" step >/dev/null 2>&1  # TEST-2
+    "$RESTACK" step >/dev/null 2>&1  # TEST-3
     
     # Verify each -fix branch has correct parent
     local test1_fix=$(git rev-parse feature/TEST-1-base-fix)
@@ -1316,16 +1316,16 @@ test_continue_respects_mode() {
     echo "Modified" >> cont.txt
     
     # Generate plan
-    "$JENGA" plan >/dev/null 2>&1
+    "$RESTACK" plan >/dev/null 2>&1
     
     # Start with step (should process only TEST-1)
-    "$JENGA" step >/dev/null 2>&1
+    "$RESTACK" step >/dev/null 2>&1
     
     # Verify mode is step (JSON format)
-    grep -q '"mode": "step"' .git/git-jenga/state.json || { echo "Mode should be step"; return 1; }
+    grep -q '"mode": "step"' .git/git-restack/state.json || { echo "Mode should be step"; return 1; }
     
     # Use --continue - should respect step mode and only do one more (TEST-2)
-    local output=$("$JENGA" exec --continue 2>&1)
+    local output=$("$RESTACK" exec --continue 2>&1)
     local code=$?
     
     [ $code -eq 0 ] || { echo "Continue failed with code $code"; return 1; }
@@ -1334,7 +1334,7 @@ test_continue_respects_mode() {
     echo "$output" | grep -q "Step 2/3 done" || { echo "Should show Step 2/3 done"; echo "$output"; return 1; }
     
     # State should still exist
-    [ -f .git/git-jenga/state.json ] || { echo "State should still exist after step 2"; return 1; }
+    [ -f .git/git-restack/state.json ] || { echo "State should still exist after step 2"; return 1; }
     
     return 0
 }

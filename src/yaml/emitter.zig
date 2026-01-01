@@ -7,7 +7,7 @@ pub fn emitPlan(allocator: std.mem.Allocator, plan: types.Plan) ![]const u8 {
     errdefer buffer.deinit(allocator);
     const writer = buffer.writer(allocator);
 
-    try writer.writeAll("# git-jenga restacking plan\n");
+    try writer.writeAll("# git-restack restacking plan\n");
     try writer.print("version: {d}\n", .{plan.version});
     try writer.print("generated: \"{s}\"\n", .{plan.generated});
     try writer.print("repository: \"{s}\"\n", .{plan.repository});

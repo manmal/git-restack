@@ -17,10 +17,10 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
     var stack = stack_mod.analyzeStack(allocator) catch |err| {
         switch (err) {
-            types.JengaError.GitCommandFailed => {
+            types.RestackError.GitCommandFailed => {
                 std.debug.print("Error: Git command failed. Are you in a git repository?\n", .{});
             },
-            types.JengaError.BaseBranchNotFound => {
+            types.RestackError.BaseBranchNotFound => {
                 std.debug.print("Error: Could not find 'develop' or 'main' base branch.\n", .{});
             },
             else => {
@@ -40,7 +40,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
 fn printHelp() void {
     std.debug.print(
-        \\Usage: git-jenga stack [OPTIONS]
+        \\Usage: git-restack stack [OPTIONS]
         \\
         \\Print the stacked branch hierarchy from HEAD to develop/main.
         \\

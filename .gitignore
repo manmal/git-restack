@@ -4,6 +4,7 @@ zig-out/
 
 # Generated plans
 jenga-plan.yml
+test-plan.yml
 
 # macOS
 .DS_Store

@@ -7,10 +7,14 @@ const cli_apply = @import("cli/apply.zig");
 const cli_cleanup = @import("cli/cleanup.zig");
 const cli_nuke = @import("cli/nuke.zig");
 const cli_status = @import("cli/status.zig");
+const git_lib = @import("git/libgit2.zig");
 
 const VERSION = "0.1.0";
 
 pub fn main() !void {
+    git_lib.ensureInit();
+    defer git_lib.shutdown();
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     var arena = std.heap.ArenaAllocator.init(gpa.allocator());

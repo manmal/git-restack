@@ -61,10 +61,10 @@ main
 ## Quick start
 
 ```sh
-zig build
-./zig-out/bin/git-restack plan
-./zig-out/bin/git-restack exec --force
-./zig-out/bin/git-restack apply
+cabal build
+cabal run git-restack -- plan
+cabal run git-restack -- exec --force
+cabal run git-restack -- apply
 ```
 
 ## Workflow

@@ -11,6 +11,9 @@ module GitRestack.Utils
   , decodeBase64
   , containsIgnoreCase
   , detectMergetoolSide
+  , fixBranchPrefix
+  , makeFixBranchName
+  , isFixBranch
   ) where
 
 import Data.ByteString (ByteString)
@@ -79,3 +82,12 @@ detectMergetoolSide (Just tool)
   | containsIgnoreCase tool "theirs" = Just "theirs"
   | containsIgnoreCase tool "ours" = Just "ours"
   | otherwise = Nothing
+
+fixBranchPrefix :: Text
+fixBranchPrefix = "git-restack/fix/"
+
+makeFixBranchName :: Text -> Text
+makeFixBranchName name = fixBranchPrefix <> name
+
+isFixBranch :: Text -> Bool
+isFixBranch = Text.isPrefixOf fixBranchPrefix

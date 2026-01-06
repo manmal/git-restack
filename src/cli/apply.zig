@@ -3,6 +3,7 @@ const types = @import("../types.zig");
 const parser = @import("../yaml/parser.zig");
 const strings = @import("../utils/strings.zig");
 const process = @import("../utils/process.zig");
+const restack = @import("../utils/restack.zig");
 
 const DEFAULT_PLAN_FILE = ".git/git-restack/plan.yml";
 
@@ -125,14 +126,14 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
         std.debug.print("\x1b[32m✓\x1b[0m All branches match the plan\n\n", .{});
     }
 
-    // Step 2: Verify -fix branches exist in worktree
-    std.debug.print("Verifying -fix branches in worktree...\n\n", .{});
+    // Step 2: Verify fix branches exist in worktree
+    std.debug.print("Verifying git-restack/fix/* branches in worktree...\n\n", .{});
 
     for (plan.stack.branches) |branch| {
-        const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+        const fix_branch_name = try restack.makeFixBranchName(allocator, branch.name);
         defer allocator.free(fix_branch_name);
 
-        // Check if -fix branch exists
+        // Check if fix branch exists
         const check_result = process.runGitWithStatus(allocator, &.{
             "-C",
             wt_path,
@@ -157,7 +158,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
     std.debug.print("\n", .{});
 
-    // Step 3: Reset original branches to -fix branch tips
+    // Step 3: Reset original branches to fix branch tips
     if (dry_run) {
         std.debug.print("\x1b[33mDry run:\x1b[0m The following changes would be made:\n\n", .{});
     } else {
@@ -165,10 +166,10 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     }
 
     for (plan.stack.branches) |branch| {
-        const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+        const fix_branch_name = try restack.makeFixBranchName(allocator, branch.name);
         defer allocator.free(fix_branch_name);
 
-        // Get the commit SHA of the -fix branch
+        // Get the commit SHA of the fix branch
         const fix_commit_raw = process.runGitWithStatus(allocator, &.{
             "-C",
             wt_path,
@@ -186,7 +187,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
         if (dry_run) {
             std.debug.print("  {s} → {s}\n", .{ branch.name, fix_commit[0..@min(7, fix_commit.len)] });
         } else {
-            // Force update the original branch to point to the -fix commit
+            // Force update the original branch to point to the fix commit
             const update_result = process.runGitWithStatus(allocator, &.{
                 "branch",
                 "-f",
@@ -217,9 +218,9 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     if (cleanup) {
         std.debug.print("\nCleaning up...\n", .{});
 
-        // Delete -fix branches from worktree
+        // Delete fix branches from worktree
         for (plan.stack.branches) |branch| {
-            const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+            const fix_branch_name = try restack.makeFixBranchName(allocator, branch.name);
             defer allocator.free(fix_branch_name);
 
             _ = process.runGitWithStatus(allocator, &.{
@@ -267,13 +268,13 @@ fn printHelp() void {
     std.debug.print(
         \\Usage: git-restack apply [plan.yml] [OPTIONS]
         \\
-        \\Applies the executed plan by resetting original branches to their -fix counterparts.
+        \\Applies the executed plan by resetting original branches to their git-restack/fix/<branch> counterparts.
         \\
         \\This command:
         \\  1. Verifies no branches have diverged since the plan was created
-        \\  2. Verifies all -fix branches exist in the worktree
-        \\  3. Force-updates each original branch to its -fix branch's commit
-        \\  4. Optionally cleans up the worktree and -fix branches
+        \\  2. Verifies all git-restack/fix/* branches exist in the worktree
+        \\  3. Force-updates each original branch to its git-restack/fix/* commit
+        \\  4. Optionally cleans up the worktree and fix branches
         \\
         \\Arguments:
         \\  plan.yml                 Plan file (default: .git/git-restack/plan.yml)
@@ -282,7 +283,7 @@ fn printHelp() void {
         \\  --worktree-path <path>   Path to worktree (default: ../<repo>-restack)
         \\  -n, --dry-run            Show what would be done without making changes
         \\  -f, --force              Apply even if branches have diverged (dangerous!)
-        \\  --cleanup                Remove worktree and -fix branches after applying
+        \\  --cleanup                Remove worktree and git-restack/fix/* branches after applying
         \\  -h, --help               Show this help message
         \\
         \\Safety:

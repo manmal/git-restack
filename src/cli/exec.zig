@@ -4,6 +4,7 @@ const parser = @import("../yaml/parser.zig");
 const emitter = @import("../yaml/emitter.zig");
 const strings = @import("../utils/strings.zig");
 const process = @import("../utils/process.zig");
+const restack = @import("../utils/restack.zig");
 const stack_mod = @import("../git/stack.zig");
 const diff_mod = @import("../git/diff.zig");
 
@@ -180,15 +181,15 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
         std.debug.print("\n[{d}/{d}] Processing: {s}\n", .{ idx + 1, plan.stack.branches.len, branch.name });
 
-        const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+        const fix_branch_name = try restack.makeFixBranchName(allocator, branch.name);
 
-        // Checkout the correct parent (base tip or parent -fix), then create the fix branch
+        // Checkout the correct parent (base tip or parent fix), then create the fix branch
         const parent_ref_allocated = if (branch.parent_branch) |parent| !std.mem.eql(u8, parent, plan.stack.base_branch) else false;
         const parent_ref = if (branch.parent_branch) |parent| blk: {
             if (std.mem.eql(u8, parent, plan.stack.base_branch)) {
                 break :blk plan.stack.base_tip;
             } else {
-                break :blk try std.fmt.allocPrint(allocator, "{s}-fix", .{parent});
+                break :blk try restack.makeFixBranchName(allocator, parent);
             }
         } else plan.stack.base_tip;
         defer if (parent_ref_allocated) allocator.free(parent_ref);
@@ -390,9 +391,9 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     }
 
     std.debug.print("\nNext steps:\n", .{});
-    std.debug.print("  1. Review the -fix branches in {s}\n", .{wt_path});
-    std.debug.print("  2. If satisfied, push the -fix branches\n", .{});
-    std.debug.print("  3. Update PRs to point to the -fix branches\n", .{});
+    std.debug.print("  1. Review the git-restack/fix/* branches in {s}\n", .{wt_path});
+    std.debug.print("  2. If satisfied, push the git-restack/fix/* branches\n", .{});
+    std.debug.print("  3. Update PRs to point to the git-restack/fix/* branches\n", .{});
     std.debug.print("  4. Clean up with: git worktree remove {s}\n", .{wt_path});
 
     // Clean up state file
@@ -509,7 +510,7 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
 
         std.debug.print("\n[{d}/{d}] Processing: {s}\n", .{ idx + 1, plan.stack.branches.len, branch.name });
 
-        const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+        const fix_branch_name = try restack.makeFixBranchName(allocator, branch.name);
 
         // For the first (resumed) branch, we're already on it after cherry-pick --continue
         // For subsequent branches, we need to check out the parent and create the branch
@@ -519,7 +520,7 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
                 if (std.mem.eql(u8, parent, plan.stack.base_branch)) {
                     break :blk plan.stack.base_tip;
                 } else {
-                    break :blk try std.fmt.allocPrint(allocator, "{s}-fix", .{parent});
+                    break :blk try restack.makeFixBranchName(allocator, parent);
                 }
             } else plan.stack.base_tip;
             defer if (parent_ref_allocated) allocator.free(parent_ref);
@@ -743,9 +744,9 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
     }
 
     std.debug.print("\nNext steps:\n", .{});
-    std.debug.print("  1. Review the -fix branches in {s}\n", .{wt_path});
-    std.debug.print("  2. If satisfied, push the -fix branches\n", .{});
-    std.debug.print("  3. Update PRs to point to the -fix branches\n", .{});
+    std.debug.print("  1. Review the git-restack/fix/* branches in {s}\n", .{wt_path});
+    std.debug.print("  2. If satisfied, push the git-restack/fix/* branches\n", .{});
+    std.debug.print("  3. Update PRs to point to the git-restack/fix/* branches\n", .{});
     std.debug.print("  4. Clean up with: git worktree remove {s}\n", .{wt_path});
 
     // Clean up state file
@@ -820,7 +821,7 @@ fn validatePlanStack(allocator: std.mem.Allocator, plan: types.Plan) !void {
         if (planned_set.contains(name)) continue;
         if (std.mem.eql(u8, name, plan.stack.base_branch)) continue;
         if (std.mem.indexOf(u8, name, "git-restack") != null) continue; // internal plan/backup branches
-        if (std.mem.endsWith(u8, name, "-fix")) continue; // allow existing -fix branches
+        if (restack.isFixBranch(name)) continue; // allow existing fix branches
         if (isBranchInRange(allocator, current.base_commit, current.head_commit, name)) {
             return types.RestackError.InvalidPlan;
         }

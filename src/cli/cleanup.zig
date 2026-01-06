@@ -1,6 +1,7 @@
 const std = @import("std");
 const process = @import("../utils/process.zig");
 const strings = @import("../utils/strings.zig");
+const restack = @import("../utils/restack.zig");
 const parser = @import("../yaml/parser.zig");
 
 const STATE_DIR = ".git/git-restack";
@@ -48,7 +49,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
         break :blk true;
     };
 
-    // Try to load plan to find -fix/backup/plan branches
+    // Try to load plan to find fix/backup/plan branches
     var fix_branches: std.ArrayListUnmanaged([]const u8) = .{};
     var backup_branches: std.ArrayListUnmanaged([]const u8) = .{};
     var plan_branches: std.ArrayListUnmanaged([]const u8) = .{};
@@ -74,7 +75,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             defer plan.deinit(allocator);
 
             for (plan.stack.branches) |branch| {
-                const fix_name = std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name}) catch continue;
+                const fix_name = restack.makeFixBranchName(allocator, branch.name) catch continue;
                 fix_branches.append(allocator, fix_name) catch continue;
             }
 
@@ -95,11 +96,11 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
             }
         } else |_| {}
     } else |_| {
-        // No plan file, find -fix branches by pattern
+        // No plan file, find fix branches by pattern
         const branches_result = process.runGitWithStatus(allocator, &.{
             "branch",
             "--list",
-            "*-fix",
+            "git-restack/fix/*",
         }) catch null;
 
         if (branches_result) |result| {
@@ -115,7 +116,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
                     else
                         trimmed;
                     
-                    if (branch_name.len > 0 and std.mem.endsWith(u8, branch_name, "-fix")) {
+                    if (branch_name.len > 0 and restack.isFixBranch(branch_name)) {
                         fix_branches.append(allocator, strings.copy(allocator, branch_name) catch continue) catch continue;
                     }
                 }
@@ -195,7 +196,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     }
     
     if (fix_branches.items.len > 0) {
-        std.debug.print("  • {d} -fix branches:\n", .{fix_branches.items.len});
+        std.debug.print("  • {d} git-restack/fix branches:\n", .{fix_branches.items.len});
         for (fix_branches.items) |branch| {
             std.debug.print("    └── {s}\n", .{branch});
         }
@@ -288,7 +289,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
     _ = process.runGit(allocator, &.{ "worktree", "prune" }) catch {};
 
-    // Delete -fix branches
+    // Delete fix branches
     for (fix_branches.items) |branch| {
         const result = process.runGitWithStatus(allocator, &.{
             "branch",
@@ -358,7 +359,7 @@ fn printHelp() void {
         \\This removes:
         \\  - The worktree (../<repo>-restack)
         \\  - The plan worktree (../<repo>-restack-plan)
-        \\  - All -fix branches created by 'exec'
+        \\  - All git-restack/fix/* branches created by 'exec'
         \\  - Any git-restack plan/backup branches
         \\  - The plan and state files (unless --keep-plan)
         \\

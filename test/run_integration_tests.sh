@@ -256,8 +256,8 @@ test_exec_no_conflicts() {
     # Check success
     [ $code -eq 0 ] || { echo "Exit code was $code"; echo "$output"; return 1; }
     echo "$output" | grep -q "Execution complete" || { echo "Missing complete msg"; return 1; }
-    echo "$output" | grep -q "feature/TEST-1-base-fix" || { echo "Missing TEST-1-fix"; return 1; }
-    echo "$output" | grep -q "feature/TEST-2-top-fix" || { echo "Missing TEST-2-fix"; return 1; }
+    echo "$output" | grep -q "git-restack/fix/feature/TEST-1-base" || { echo "Missing TEST-1 fix branch"; return 1; }
+    echo "$output" | grep -q "git-restack/fix/feature/TEST-2-top" || { echo "Missing TEST-2 fix branch"; return 1; }
     
     return 0
 }
@@ -671,9 +671,9 @@ test_diffs_applied() {
     local wt_path="../$(basename $(pwd))-restack"
     [ -d "$wt_path" ] || { echo "Worktree not found at $wt_path"; return 1; }
     
-    # Check out the -fix branch and verify the file content
+    # Check out the fix branch and verify the file content
     cd "$wt_path"
-    git checkout feature/TEST-1-first-fix >/dev/null 2>&1 || { echo "Could not checkout fix branch"; return 1; }
+    git checkout git-restack/fix/feature/TEST-1-first >/dev/null 2>&1 || { echo "Could not checkout fix branch"; return 1; }
     
     # Verify the modification was applied
     grep -q "MODIFIED LINE" myfile.txt || { echo "Diff was NOT applied - MODIFIED LINE not found"; cat myfile.txt; return 1; }
@@ -741,7 +741,7 @@ test_verify_runs_per_branch() {
 }
 
 # ============================================================================
-# TEST: Apply command resets original branches to -fix branches
+# TEST: Apply command resets original branches to git-restack/fix branches
 # ============================================================================
 test_apply_resets_branches() {
     echo "# Test" > README.md
@@ -773,20 +773,20 @@ test_apply_resets_branches() {
     git checkout -- . 
     git checkout -q main
     
-    # Verify -fix branches were created and have different commits
-    local fix_test1=$(git rev-parse feature/TEST-1-first-fix)
-    [ "$original_test1" != "$fix_test1" ] || { echo "-fix branch should have different commit"; return 1; }
-    
-    # Now apply - this should reset original branches to -fix branches
+    # Verify fix branches were created and have different commits
+    local fix_test1=$(git rev-parse git-restack/fix/feature/TEST-1-first)
+    [ "$original_test1" != "$fix_test1" ] || { echo "fix branch should have different commit"; return 1; }
+
+    # Now apply - this should reset original branches to fix branches
     "$RESTACK" apply plan.yml >/dev/null 2>&1
     local code=$?
     [ $code -eq 0 ] || { echo "Apply failed with code $code"; return 1; }
     
-    # Verify original branches now point to same commits as -fix branches
+    # Verify original branches now point to same commits as fix branches
     local new_test1=$(git rev-parse feature/TEST-1-first)
     local new_test2=$(git rev-parse feature/TEST-2-second)
     
-    [ "$new_test1" = "$fix_test1" ] || { echo "TEST-1 should now match -fix branch"; return 1; }
+    [ "$new_test1" = "$fix_test1" ] || { echo "TEST-1 should now match fix branch"; return 1; }
     
     # TEST-2 should also be updated (rebased on new TEST-1)
     [ "$new_test2" != "$original_test2" ] || { echo "TEST-2 should have been updated"; return 1; }
@@ -1150,9 +1150,9 @@ test_step_single_branch() {
     echo "$output" | grep -q "Step 1/3 done" || { echo "Should show Step 1/3 done"; echo "$output"; return 1; }
     echo "$output" | grep -q "TEST-1-first" || { echo "Should mention TEST-1"; return 1; }
     
-    # Verify only TEST-1-fix branch exists
-    git branch | grep -q "feature/TEST-1-first-fix" || { echo "TEST-1-fix should exist"; return 1; }
-    git branch | grep -q "feature/TEST-2-second-fix" && { echo "TEST-2-fix should NOT exist yet"; return 1; }
+    # Verify only TEST-1 fix branch exists
+    git branch | grep -q "git-restack/fix/feature/TEST-1-first" || { echo "TEST-1 fix should exist"; return 1; }
+    git branch | grep -q "git-restack/fix/feature/TEST-2-second" && { echo "TEST-2 fix should NOT exist yet"; return 1; }
     
     # Second step - should process TEST-2
     output=$("$RESTACK" step 2>&1)
@@ -1161,8 +1161,8 @@ test_step_single_branch() {
     [ $code -eq 0 ] || { echo "Step 2 failed with code $code"; return 1; }
     echo "$output" | grep -q "Step 2/3 done" || { echo "Should show Step 2/3 done"; echo "$output"; return 1; }
     
-    # Verify TEST-2-fix now exists
-    git branch | grep -q "feature/TEST-2-second-fix" || { echo "TEST-2-fix should exist now"; return 1; }
+    # Verify TEST-2 fix now exists
+    git branch | grep -q "git-restack/fix/feature/TEST-2-second" || { echo "TEST-2 fix should exist now"; return 1; }
     
     # Third step - should process TEST-3 and complete
     output=$("$RESTACK" step 2>&1)
@@ -1235,10 +1235,10 @@ test_step_applies_fixes() {
     # Run first step
     "$RESTACK" step >/dev/null 2>&1
     
-    # Check fix was applied in -fix branch
+    # Check fix was applied in fix branch
     local wt_path="../$(basename $(pwd))-restack"
     cd "$wt_path"
-    git checkout feature/TEST-1-fix-fix >/dev/null 2>&1
+    git checkout git-restack/fix/feature/TEST-1-fix >/dev/null 2>&1
     grep -q "FIXED" fixme.txt || { echo "Fix was not applied"; cat fixme.txt; return 1; }
     cd - >/dev/null
     
@@ -1306,16 +1306,16 @@ test_step_chains_branches() {
     "$RESTACK" step >/dev/null 2>&1  # TEST-2
     "$RESTACK" step >/dev/null 2>&1  # TEST-3
     
-    # Verify each -fix branch has correct parent
-    local test1_fix=$(git rev-parse feature/TEST-1-base-fix)
-    local test2_fix=$(git rev-parse feature/TEST-2-middle-fix)
-    local test3_fix=$(git rev-parse feature/TEST-3-top-fix)
+    # Verify each fix branch has correct parent
+    local test1_fix=$(git rev-parse git-restack/fix/feature/TEST-1-base)
+    local test2_fix=$(git rev-parse git-restack/fix/feature/TEST-2-middle)
+    local test3_fix=$(git rev-parse git-restack/fix/feature/TEST-3-top)
     
-    # TEST-2-fix should be descendant of TEST-1-fix
-    git merge-base --is-ancestor "$test1_fix" "$test2_fix" || { echo "TEST-2-fix should descend from TEST-1-fix"; return 1; }
+    # TEST-2 fix should be descendant of TEST-1 fix
+    git merge-base --is-ancestor "$test1_fix" "$test2_fix" || { echo "TEST-2 fix should descend from TEST-1 fix"; return 1; }
     
-    # TEST-3-fix should be descendant of TEST-2-fix
-    git merge-base --is-ancestor "$test2_fix" "$test3_fix" || { echo "TEST-3-fix should descend from TEST-2-fix"; return 1; }
+    # TEST-3 fix should be descendant of TEST-2 fix
+    git merge-base --is-ancestor "$test2_fix" "$test3_fix" || { echo "TEST-3 fix should descend from TEST-2 fix"; return 1; }
     
     # All three should have different commits
     [ "$test1_fix" != "$test2_fix" ] || { echo "TEST-1 and TEST-2 should have different commits"; return 1; }
@@ -1399,7 +1399,7 @@ run_test "Exec creates worktree directory" test_worktree_created
 run_test "Plan output file path works" test_plan_output_path
 run_test "Diffs are actually applied to files" test_diffs_applied
 run_test "Verify command runs once per branch" test_verify_runs_per_branch
-run_test "Apply resets original branches to -fix branches" test_apply_resets_branches
+run_test "Apply resets original branches to git-restack/fix branches" test_apply_resets_branches
 run_test "Verify-only mode runs verification without changes" test_verify_only_mode
 run_test "Plan conflict resolution runs verification" test_plan_conflict_runs_verification
 run_test "Plan auto-resolves conflicts" test_plan_auto_resolves_conflicts

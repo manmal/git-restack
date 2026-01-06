@@ -53,10 +53,10 @@ main
 
 After (fix branches keep the stack intact):
 main
- └─ feature/TEST-1-base-fix
-    └─ feature/TEST-2-api-fix
-       └─ feature/TEST-3-ui-fix
-          └─ feature/TEST-4-top-fix
+ └─ git-restack/fix/feature/TEST-1-base
+    └─ git-restack/fix/feature/TEST-2-api
+       └─ git-restack/fix/feature/TEST-3-ui
+          └─ git-restack/fix/feature/TEST-4-top
 ```
 
 ## Quick start
@@ -73,8 +73,8 @@ cabal run git-restack -- apply
 1. Make changes on the current stack head.
 2. `git-restack plan` creates a plan file and captures conflicts.
 3. Inspect `.git/git-restack/plan.yml`.
-4. `git-restack exec --force` creates `-fix` branches with your changes.
-5. `git-restack apply` updates original branches to the `-fix` tips.
+4. `git-restack exec --force` creates `git-restack/fix/*` branches with your changes.
+5. `git-restack apply` updates original branches to the `git-restack/fix/*` tips.
 
 ## Usage examples
 

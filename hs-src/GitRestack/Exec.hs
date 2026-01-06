@@ -184,7 +184,7 @@ executePlan worktreePath plan state0 = do
       saveState state'
       putStrLn ("\n[" <> show (idx + 1) <> "/" <> show (length (stBranches (planStack planAcc))) <> "] Processing: " <> Text.unpack (sbName branch))
 
-      let fixBranchName = Text.unpack (sbName branch) <> "-fix"
+      let fixBranchName = Text.unpack (makeFixBranchName (sbName branch))
       _ <- runGitInDir wtPath ["checkout", "-b", fixBranchName]
 
       usedAfterCherry <- cherryPickBranch wtPath planAcc used branch
@@ -226,7 +226,7 @@ resumePlan worktreePath plan state0 conflictUsed = do
       saveState state'
       putStrLn ("\n[" <> show (idx + 1) <> "/" <> show (length (stBranches (planStack planAcc))) <> "] Processing: " <> Text.unpack (sbName branch))
 
-      let fixBranchName = Text.unpack (sbName branch) <> "-fix"
+      let fixBranchName = Text.unpack (makeFixBranchName (sbName branch))
       if idx == startIndex
         then putStrLn "  Resumed after conflict resolution"
         else do
@@ -348,9 +348,9 @@ printCompletion worktreePath branches = do
   putStrLn "Created branches:"
   forM_ branches $ \branch -> putStrLn ("  - " <> Text.unpack branch)
   putStrLn "\nNext steps:"
-  putStrLn ("  1. Review the -fix branches in " <> worktreePath)
-  putStrLn "  2. If satisfied, push the -fix branches"
-  putStrLn "  3. Update PRs to point to the -fix branches"
+  putStrLn ("  1. Review the git-restack/fix/* branches in " <> worktreePath)
+  putStrLn "  2. If satisfied, push the git-restack/fix/* branches"
+  putStrLn "  3. Update PRs to point to the git-restack/fix/* branches"
   putStrLn ("  4. Clean up with: git worktree remove " <> worktreePath)
 
 validatePlanStack :: Plan -> IO ()

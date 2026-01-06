@@ -4,6 +4,7 @@ const parser = @import("../yaml/parser.zig");
 const emitter = @import("../yaml/emitter.zig");
 const strings = @import("../utils/strings.zig");
 const process = @import("../utils/process.zig");
+const restack = @import("../utils/restack.zig");
 const stack_mod = @import("../git/stack.zig");
 const diff_mod = @import("../git/diff.zig");
 
@@ -169,10 +170,10 @@ fn executeStep(allocator: std.mem.Allocator, wt_path: []const u8, plan: types.Pl
 
     std.debug.print("\n[{d}/{d}] Processing: {s}\n", .{ branch_idx + 1, plan.stack.branches.len, branch.name });
 
-    const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
+    const fix_branch_name = try restack.makeFixBranchName(allocator, branch.name);
     defer allocator.free(fix_branch_name);
 
-    // Check if this -fix branch already exists
+    // Check if this fix branch already exists
     const branch_exists = blk: {
         const result = process.runGitInDir(allocator, wt_path, &.{ "rev-parse", "--verify", fix_branch_name }) catch break :blk false;
         allocator.free(result);
@@ -183,13 +184,13 @@ fn executeStep(allocator: std.mem.Allocator, wt_path: []const u8, plan: types.Pl
         // Create the fix branch
         std.debug.print("  Creating branch: {s}\n", .{fix_branch_name});
 
-        // First, checkout the parent -fix branch (or base branch for first)
+        // First, checkout the parent fix branch (or base branch for first)
         const parent_fix_allocated = if (branch.parent_branch) |parent| !std.mem.eql(u8, parent, plan.stack.base_branch) else false;
         const parent_fix = if (branch.parent_branch) |parent| blk: {
             if (std.mem.eql(u8, parent, plan.stack.base_branch)) {
                 break :blk plan.stack.base_tip;
             } else {
-                break :blk try std.fmt.allocPrint(allocator, "{s}-fix", .{parent});
+                break :blk try restack.makeFixBranchName(allocator, parent);
             }
         } else plan.stack.base_tip;
         defer if (parent_fix_allocated) allocator.free(parent_fix);
@@ -492,7 +493,7 @@ fn validatePlanStack(allocator: std.mem.Allocator, plan: types.Plan) !void {
         if (planned_set.contains(name)) continue;
         if (std.mem.eql(u8, name, plan.stack.base_branch)) continue;
         if (std.mem.indexOf(u8, name, "git-restack") != null) continue;
-        if (std.mem.endsWith(u8, name, "-fix")) continue;
+        if (restack.isFixBranch(name)) continue;
         if (isBranchInRange(allocator, current.base_commit, current.head_commit, name)) {
             return types.RestackError.InvalidPlan;
         }

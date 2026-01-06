@@ -432,7 +432,7 @@ test "execution state json round-trip" {
         .started_at = "2025-01-01T10:00:00Z",
         .last_updated = "2025-01-01T10:05:00Z",
         .status = .conflict,
-        .completed_branches = &[_][]const u8{ "branch-1-fix", "branch-2-fix" },
+        .completed_branches = &[_][]const u8{ "git-restack/fix/branch-1", "git-restack/fix/branch-2" },
     };
 
     // Emit

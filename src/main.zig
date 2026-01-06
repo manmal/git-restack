@@ -77,10 +77,10 @@ fn printUsage() void {
         \\Commands:
         \\  stack     Show the stacked branch hierarchy
         \\  plan      Generate a restacking plan from staged/unstaged changes
-        \\  exec      Execute the plan (creates -fix branches in worktree)
+        \\  exec      Execute the plan (creates git-restack/fix/* branches in worktree)
         \\  step      Execute ONE step of the plan (for debugging/manual control)
-        \\  apply     Apply changes (reset original branches to -fix branches)
-        \\  cleanup   Remove worktree and -fix branches
+        \\  apply     Apply changes (reset original branches to git-restack/fix/* branches)
+        \\  cleanup   Remove worktree and git-restack/fix/* branches
         \\  nuke      Remove ALL git-restack state (emergency reset)
         \\  status    Show current execution status
         \\

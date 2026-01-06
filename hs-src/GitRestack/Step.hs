@@ -104,7 +104,7 @@ executeStep worktreePath plan state0 = do
 
   putStrLn ("\n[" <> show (branchIdx + 1) <> "/" <> show (length (stBranches (planStack plan))) <> "] Processing: " <> Text.unpack (sbName branch))
 
-  let fixBranchName = Text.unpack (sbName branch) <> "-fix"
+  let fixBranchName = Text.unpack (makeFixBranchName (sbName branch))
   branchExists <- branchExistsInWorktree worktreePath fixBranchName
   state <- if branchExists
     then do
@@ -159,7 +159,7 @@ resolveParentFix plan branch =
     Just parentName ->
       if parentName == stBaseBranch (planStack plan)
         then pure (Text.unpack parentName)
-        else pure (Text.unpack parentName <> "-fix")
+        else pure (Text.unpack (makeFixBranchName parentName))
 
 cherryPickCommits :: FilePath -> Plan -> [Bool] -> ExecutionState -> StackBranch -> IO [Bool]
 cherryPickCommits wtPath plan used state branch =

@@ -12,6 +12,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import GitRestack.Git
 import GitRestack.Types
+import GitRestack.Utils (isFixBranch, makeFixBranchName)
 import GitRestack.Yaml
 import System.Directory
 import System.Exit (ExitCode(..), exitWith)
@@ -55,7 +56,7 @@ runCleanup opts = do
   when hasPlanWorktree $ putStrLn ("  - Plan worktree: " <> fromMaybe "" planWorktreePath)
 
   when (not (null fixBranches)) $ do
-    putStrLn ("  - " <> show (length fixBranches) <> " -fix branches:")
+    putStrLn ("  - " <> show (length fixBranches) <> " git-restack/fix branches:")
     forM_ fixBranches $ \branch -> putStrLn ("    - " <> branch)
 
   when (not (null backupBranches)) $ do
@@ -138,7 +139,7 @@ loadPlanInfo planPath = do
       content <- BS.readFile planPath
       case parsePlan content of
         Right plan -> do
-          let fixBranches = map (\b -> Text.unpack (sbName b) <> "-fix") (stBranches (planStack plan))
+          let fixBranches = map (Text.unpack . makeFixBranchName . sbName) (stBranches (planStack plan))
           let (planWorktree, planBranches, backupBranches) =
                 case planSimulation plan of
                   Nothing -> (Nothing, [], [])
@@ -159,7 +160,7 @@ loadPlanInfo planPath = do
     else fallbackPlanInfo hasPlan hasState
   where
     fallbackPlanInfo hasPlan hasState = do
-      fixBranches <- listBranches "*-fix" (\name -> "-fix" `Text.isSuffixOf` Text.pack name)
+      fixBranches <- listBranches "git-restack/fix/*" (\name -> isFixBranch (Text.pack name))
       backupBranches <- listBranches "*-restack-backup-*" (\name -> "restack-backup" `Text.isInfixOf` Text.pack name)
       planBranches <- listBranches "git-restack-plan-*" (\name -> "git-restack-plan-" `Text.isPrefixOf` Text.pack name)
       pure PlanInfo

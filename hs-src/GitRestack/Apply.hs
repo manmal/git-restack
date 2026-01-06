@@ -16,7 +16,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEnc
 import GitRestack.Git
 import GitRestack.Types
-import GitRestack.Utils (trimBS)
+import GitRestack.Utils (makeFixBranchName, trimBS)
 import GitRestack.Yaml
 import System.Directory
 import System.Exit (ExitCode(..), exitWith)
@@ -63,9 +63,9 @@ runApply opts = do
   unless diverged $
     putStrLn "[OK] All branches match the plan\n"
 
-  putStrLn "Verifying -fix branches in worktree...\n"
+  putStrLn "Verifying git-restack/fix/* branches in worktree...\n"
   forM_ (stBranches (planStack plan)) $ \branch -> do
-    let fixBranchName = Text.unpack (sbName branch) <> "-fix"
+    let fixBranchName = Text.unpack (makeFixBranchName (sbName branch))
     result <- runGitWithStatus ["-C", worktreePath, "rev-parse", "--verify", fixBranchName]
     when (grExitCode result /= 0) $ do
       putStrLn ("Error: Branch '" <> fixBranchName <> "' not found in worktree.")
@@ -80,7 +80,7 @@ runApply opts = do
     else putStrLn "Applying changes...\n"
 
   forM_ (stBranches (planStack plan)) $ \branch -> do
-    let fixBranchName = Text.unpack (sbName branch) <> "-fix"
+    let fixBranchName = Text.unpack (makeFixBranchName (sbName branch))
     fixCommit <- getFixCommit worktreePath fixBranchName
     if aoDryRun opts
       then putStrLn ("  " <> Text.unpack (sbName branch) <> " -> " <> shortSha fixCommit)
@@ -98,7 +98,7 @@ runApply opts = do
   when (aoCleanup opts) $ do
     putStrLn "\nCleaning up..."
     forM_ (stBranches (planStack plan)) $ \branch -> do
-      let fixBranchName = Text.unpack (sbName branch) <> "-fix"
+      let fixBranchName = Text.unpack (makeFixBranchName (sbName branch))
       _ <- runGitWithStatus ["-C", worktreePath, "branch", "-D", fixBranchName]
       pure ()
     _ <- runGitWithStatus ["worktree", "remove", worktreePath, "--force"]

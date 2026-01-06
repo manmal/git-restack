@@ -56,7 +56,7 @@ commandParser = hsubparser
  <> command "plan" (info (CmdPlan <$> planOptions) (progDesc "Generate a restacking plan"))
  <> command "exec" (info (CmdExec <$> execOptions) (progDesc "Execute the plan"))
  <> command "step" (info (CmdStep <$> stepOptions) (progDesc "Execute one step of the plan"))
- <> command "apply" (info (CmdApply <$> applyOptions) (progDesc "Apply -fix branches to originals"))
+ <> command "apply" (info (CmdApply <$> applyOptions) (progDesc "Apply git-restack/fix branches to originals"))
  <> command "cleanup" (info (CmdCleanup <$> cleanupOptions) (progDesc "Remove worktree and temporary branches"))
  <> command "nuke" (info (CmdNuke <$> nukeOptions) (progDesc "Remove all git-restack state"))
  <> command "status" (info (CmdStatus <$> statusOptions) (progDesc "Show execution or plan status"))
@@ -153,7 +153,7 @@ applyOptions = ApplyOptions
        <> showDefault )
   <*> optional (strOption (long "worktree-path" <> metavar "PATH" <> help "Path to worktree"))
   <*> switch (long "force" <> short 'f' <> help "Apply even if branches have diverged")
-  <*> switch (long "cleanup" <> help "Remove worktree and -fix branches after applying")
+  <*> switch (long "cleanup" <> help "Remove worktree and git-restack/fix branches after applying")
   <*> switch (long "dry-run" <> short 'n' <> help "Show what would be done without making changes")
 
 cleanupOptions :: Parser CleanupOptions
@@ -166,7 +166,7 @@ cleanupOptions = CleanupOptions
 nukeOptions :: Parser NukeOptions
 nukeOptions = NukeOptions
   <$> switch (long "force" <> short 'f' <> help "Skip confirmation prompt")
-  <*> switch (long "keep-branches" <> help "Do not delete -fix branches")
+  <*> switch (long "keep-branches" <> help "Do not delete git-restack/fix branches")
 
 statusOptions :: Parser StatusOptions
 statusOptions = StatusOptions

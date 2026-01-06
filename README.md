@@ -27,6 +27,7 @@ git-restack is the guardrail for agents rebasing stacked branch hierarchies: it 
 - Make every commit in a stacked branch hierarchy lint and compile.
 - Push new changes down to the commit(s) where those files were last modified ("put new changes where they belong").
 - Escape rerere hell.
+- Works with any branch naming (no `feature/*` requirement) and arbitrary base branches via `--base/--onto`.
 
 ## Git flow diagrams
 
@@ -93,6 +94,14 @@ Apply back to the original stack and clean up:
 
 ```sh
 git-restack apply --cleanup
+```
+
+Rebase the stack onto a different base branch (e.g., release/1.2.0):
+
+```sh
+git-restack plan --base release/1.2.0
+git-restack exec --force
+git-restack apply
 ```
 
 ## Verification

@@ -9,17 +9,6 @@ pub const GitResult = struct {
     exit_code: u8,
 };
 
-const GitCommand = struct {
-    repo_path: ?[]const u8,
-    command: []const u8,
-    args: []const []const u8,
-    owned: []const []const u8,
-
-    pub fn deinit(self: *GitCommand, allocator: std.mem.Allocator) void {
-        allocator.free(self.owned);
-    }
-};
-
 /// Runs a git command and returns stdout. Caller owns the memory.
 /// Fails strictly if git returns non-zero exit code.
 pub fn runGit(allocator: std.mem.Allocator, args: []const []const u8) ![]const u8 {
@@ -37,13 +26,38 @@ pub fn runGit(allocator: std.mem.Allocator, args: []const []const u8) ![]const u
     return result.stdout;
 }
 
-/// Runs a git command and returns full result including exit code.
+/// Runs a git command using the system git and returns full result including exit code.
 /// Caller owns both stdout and stderr memory.
 pub fn runGitWithStatus(allocator: std.mem.Allocator, args: []const []const u8) !GitResult {
-    var cmd = try parseGitArgs(allocator, args);
-    defer cmd.deinit(allocator);
+    // Build argv: ["git", ...args]
+    var argv = try allocator.alloc([]const u8, args.len + 1);
+    defer allocator.free(argv);
+    argv[0] = "git";
+    for (args, 0..) |arg, i| {
+        argv[i + 1] = arg;
+    }
 
-    return runGitCommand(allocator, cmd);
+    var child = std.process.Child.init(argv, allocator);
+    child.stdin_behavior = .Ignore;
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+
+    child.spawn() catch return types.RestackError.GitCommandFailed;
+
+    const stdout_bytes = child.stdout.?.readToEndAlloc(allocator, 10 * 1024 * 1024) catch return types.RestackError.GitCommandFailed;
+    const stderr_bytes = child.stderr.?.readToEndAlloc(allocator, 10 * 1024 * 1024) catch return types.RestackError.GitCommandFailed;
+
+    const term = child.wait() catch return types.RestackError.GitCommandFailed;
+    const exit_code: u8 = switch (term) {
+        .Exited => |code| @intCast(@as(u16, if (code > 255) 255 else code)),
+        else => 1,
+    };
+
+    return .{
+        .stdout = stdout_bytes,
+        .stderr = stderr_bytes,
+        .exit_code = exit_code,
+    };
 }
 
 /// Runs a git command with rerere explicitly disabled.
@@ -83,107 +97,40 @@ pub fn getCwd(allocator: std.mem.Allocator) ![]const u8 {
     return allocator.dupe(u8, cwd);
 }
 
-fn parseGitArgs(allocator: std.mem.Allocator, args: []const []const u8) !GitCommand {
-    var repo_path: ?[]const u8 = null;
-    var cleaned: std.ArrayListUnmanaged([]const u8) = .{};
-    defer cleaned.deinit(allocator);
-
-    var i: usize = 0;
-    while (i < args.len) : (i += 1) {
-        const arg = args[i];
-        if (std.mem.eql(u8, arg, "-C")) {
-            if (i + 1 >= args.len) return types.RestackError.ParseError;
-            i += 1;
-            repo_path = args[i];
-            continue;
-        }
-        if (std.mem.eql(u8, arg, "-c")) {
-            i += 1;
-            if (i >= args.len) return types.RestackError.ParseError;
-            continue;
-        }
-        try cleaned.append(allocator, arg);
-    }
-
-    if (cleaned.items.len == 0) return types.RestackError.ParseError;
-
-    const owned = try cleaned.toOwnedSlice(allocator);
-    return GitCommand{
-        .repo_path = repo_path,
-        .command = owned[0],
-        .args = if (owned.len > 1) owned[1..] else &[_][]const u8{},
-        .owned = owned,
-    };
-}
-
-fn runGitCommand(allocator: std.mem.Allocator, cmd: GitCommand) !GitResult {
-    const repo = try openRepository(allocator, cmd.repo_path);
-    defer git.c.git_repository_free(repo);
-
-    const workdir_ptr = git.c.git_repository_workdir(repo);
-    const workdir = if (workdir_ptr == null) null else std.mem.span(workdir_ptr);
-
-    if (std.mem.eql(u8, cmd.command, "symbolic-ref")) {
-        return cmdSymbolicRef(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "rev-parse")) {
-        return cmdRevParse(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "merge-base")) {
-        return cmdMergeBase(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "rev-list")) {
-        return cmdRevList(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "branch")) {
-        return cmdBranch(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "worktree")) {
-        return cmdWorktree(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "checkout")) {
-        return cmdCheckout(allocator, repo, workdir, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "status")) {
-        return cmdStatus(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "diff")) {
-        return cmdDiff(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "log")) {
-        return cmdLog(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "show")) {
-        return cmdShow(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "cherry-pick")) {
-        return cmdCherryPick(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "apply")) {
-        return cmdApply(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "add")) {
-        return cmdAdd(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "commit")) {
-        return cmdCommit(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "rm")) {
-        return cmdRm(allocator, repo, workdir, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "update-index")) {
-        return cmdUpdateIndex(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "ls-files")) {
-        return cmdLsFiles(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "stash")) {
-        return cmdStash(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "for-each-ref")) {
-        return cmdForEachRef(allocator, repo, cmd.args);
-    } else if (std.mem.eql(u8, cmd.command, "mergetool")) {
-        return cmdMergetool(allocator, repo, workdir, cmd.args);
-    }
-
-    return types.RestackError.GitCommandFailed;
-}
-
 fn openRepository(allocator: std.mem.Allocator, path: ?[]const u8) !*git.c.git_repository {
     git.ensureInit();
 
     var repo: ?*git.c.git_repository = null;
+
     if (path) |p| {
         const c_path = try git.toCString(allocator, p);
         defer allocator.free(c_path);
-        if (git.c.git_repository_open_ext(&repo, c_path, 0, null) < 0 or repo == null) {
+
+        if (git.c.git_repository_open_ext(&repo, c_path, git.c.GIT_REPOSITORY_OPEN_FROM_ENV, null) < 0 or repo == null) {
             return types.RestackError.GitCommandFailed;
         }
         return repo.?;
     }
 
-    if (git.c.git_repository_open_ext(&repo, null, git.c.GIT_REPOSITORY_OPEN_FROM_ENV, null) < 0 or repo == null) {
+    // No explicit path: discover repo starting at current working directory.
+    const start = try git.toCString(allocator, ".");
+    defer allocator.free(start);
+
+    var out_buf = git.c.git_buf{ .ptr = null, .reserved = 0, .size = 0 };
+    defer git.c.git_buf_dispose(&out_buf);
+
+    if (git.c.git_repository_discover(&out_buf, start, 0, null) < 0) {
+        return types.RestackError.GitCommandFailed;
+    }
+
+    const discovered_full = std.mem.span(out_buf.ptr)[0..out_buf.size];
+    const discovered = std.mem.trimRight(u8, discovered_full, "/");
+    const trimmed = std.mem.trimRight(u8, discovered, "/");
+    const parent = std.fs.path.dirname(trimmed) orelse trimmed;
+    const c_path = try git.toCString(allocator, parent);
+    defer allocator.free(c_path);
+
+    if (git.c.git_repository_open_ext(&repo, c_path, git.c.GIT_REPOSITORY_OPEN_FROM_ENV, null) < 0 or repo == null) {
         return types.RestackError.GitCommandFailed;
     }
     return repo.?;
@@ -250,10 +197,6 @@ fn cmdSymbolicRef(allocator: std.mem.Allocator, repo: *git.c.git_repository, arg
         return gitErrorResult(allocator);
     }
     defer git.c.git_reference_free(head_ref.?);
-
-    if (git.c.git_reference_type(head_ref.?) != git.c.GIT_REFERENCE_SYMBOLIC) {
-        return .{ .stdout = try allocEmpty(allocator), .stderr = try allocator.dupe(u8, "HEAD is detached"), .exit_code = 1 };
-    }
 
     const name_ptr = git.c.git_reference_shorthand(head_ref.?) orelse return gitErrorResult(allocator);
     var out: std.ArrayListUnmanaged(u8) = .{};
@@ -625,6 +568,7 @@ fn cmdWorktree(allocator: std.mem.Allocator, repo: *git.c.git_repository, args: 
             return gitErrorResult(allocator);
         }
         opts.ref = ref.?;
+        opts.checkout_existing = 1;
 
         var out_wt: ?*git.c.git_worktree = null;
         if (git.c.git_worktree_add(&out_wt, repo, c_name, c_path, &opts) < 0 or out_wt == null) {
@@ -949,7 +893,7 @@ fn cmdDiff(allocator: std.mem.Allocator, repo: *git.c.git_repository, args: []co
     else
         git.c.GIT_DIFF_FORMAT_PATCH;
 
-    var buf: git.c.git_buf = undefined;
+    var buf: git.c.git_buf = .{ .ptr = null, .reserved = 0, .size = 0 };
     if (git.c.git_diff_to_buf(&buf, diff.?, format) < 0) {
         return gitErrorResult(allocator);
     }

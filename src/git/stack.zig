@@ -3,7 +3,7 @@ const types = @import("../types.zig");
 const process = @import("../utils/process.zig");
 const strings = @import("../utils/strings.zig");
 
-pub fn analyzeStack(allocator: std.mem.Allocator) !types.Stack {
+pub fn analyzeStack(allocator: std.mem.Allocator, override_base_branch: ?[]const u8) !types.Stack {
     // 1. Get current HEAD branch
     const head_raw = try process.runGit(allocator, &.{ "symbolic-ref", "--short", "HEAD" });
     defer allocator.free(head_raw);
@@ -14,9 +14,14 @@ pub fn analyzeStack(allocator: std.mem.Allocator) !types.Stack {
     defer allocator.free(head_commit_raw);
     const head_commit = try strings.copy(allocator, strings.trim(head_commit_raw));
 
-    // 3. Find base (try develop, then main)
+    // 3. Find base branch (override, otherwise fall back to develop/main)
     var base_branch: []const u8 = undefined;
-    if (checkBranchExists(allocator, "develop")) {
+    if (override_base_branch) |requested_base| {
+        if (!checkBranchExists(allocator, requested_base)) {
+            return types.RestackError.BaseBranchNotFound;
+        }
+        base_branch = try strings.copy(allocator, requested_base);
+    } else if (checkBranchExists(allocator, "develop")) {
         base_branch = try strings.copy(allocator, "develop");
     } else if (checkBranchExists(allocator, "main")) {
         base_branch = try strings.copy(allocator, "main");
@@ -112,7 +117,6 @@ fn checkBranchExists(allocator: std.mem.Allocator, branch: []const u8) bool {
 }
 
 /// Returns the branch name if one exists at this commit.
-/// Only returns feature/* branches.
 fn getBranchAtCommit(allocator: std.mem.Allocator, commit_sha: []const u8) !?[]const u8 {
     const raw = try process.runGit(allocator, &.{ "branch", "--points-at", commit_sha, "--format=%(refname:short)" });
     defer allocator.free(raw);
@@ -122,10 +126,7 @@ fn getBranchAtCommit(allocator: std.mem.Allocator, commit_sha: []const u8) !?[]c
         const branch = strings.trim(b);
         if (branch.len == 0) continue;
 
-        // Only include feature/* branches
-        if (!std.mem.startsWith(u8, branch, "feature/")) continue;
-
-        // Return the first valid feature branch found
+        // Return the first branch found on this commit
         return try strings.copy(allocator, branch);
     }
     return null;

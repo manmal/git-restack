@@ -327,6 +327,38 @@ test_develop_base() {
 }
 
 # ============================================================================
+# TEST: Plan uses explicit --base override (non-default base)
+# ============================================================================
+test_plan_custom_base_override() {
+    echo "# Test" > README.md
+    git add . && git commit -q -m "Initial commit"
+    git branch -M main
+
+    # Create a different base branch
+    git checkout -q -b release/1.2.0
+    echo "Release base" > release.txt
+    git add . && git commit -q -m "Add release base"
+
+    # Create stack on top of release branch
+    git checkout -q -b feature/TEST-1-custom-base
+    echo "Feature" > feature.txt
+    git add . && git commit -q -m "Add feature"
+
+    local release_tip
+    release_tip=$(git rev-parse release/1.2.0)
+
+    # Plan with explicit base override
+    "$RESTACK" plan --base release/1.2.0 -o test-plan.yml >/dev/null 2>&1
+    local code=$?
+
+    [ $code -eq 0 ] || { echo "Plan exit code $code"; return 1; }
+    grep -q 'base_branch: "release/1.2.0"' test-plan.yml || { echo "Missing base branch override"; return 1; }
+    grep -q "base_tip: \"$release_tip\"" test-plan.yml || { echo "Missing base tip for override"; return 1; }
+    grep -q "feature/TEST-1-custom-base" test-plan.yml || { echo "Missing feature branch"; return 1; }
+    return 0
+}
+
+# ============================================================================
 # TEST: Deep stack (5 branches)
 # ============================================================================
 test_deep_stack() {
@@ -516,8 +548,8 @@ test_non_jira_branch() {
     local code=$?
     
     [ $code -eq 0 ] || return 1
-    # cleanup branch should NOT be in the stack
-    grep -q "cleanup/remove-dead-code" /tmp/stack_out.txt && return 1
+    # cleanup branch should be in the stack (prefix no longer required)
+    grep -q "cleanup/remove-dead-code" /tmp/stack_out.txt || return 1
     # feature branch SHOULD be in the stack
     grep -q "feature/TEST-1-actual-feature" /tmp/stack_out.txt || return 1
     return 0
@@ -1352,6 +1384,7 @@ run_test "Full execution without conflicts" test_exec_no_conflicts
 run_test "Abort cleans up properly" test_exec_abort
 run_test "Status command shows plan info" test_status_plan
 run_test "Develop branch as base" test_develop_base
+run_test "Plan respects custom base override" test_plan_custom_base_override
 run_test "Deep stack (5 branches)" test_deep_stack
 run_test "Continue without state fails gracefully" test_continue_no_state
 run_test "Multiple files mapping to different branches" test_multi_file_mapping

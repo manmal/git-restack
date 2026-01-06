@@ -144,9 +144,9 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
         });
     }
 
-    // Create worktree
+    // Create worktree (detached from base tip to allow base branch to remain checked out elsewhere)
     std.debug.print("Creating worktree at: {s}\n", .{wt_path});
-    _ = process.runGit(allocator, &.{ "worktree", "add", wt_path, plan.stack.base_branch }) catch |err| {
+    _ = process.runGit(allocator, &.{ "worktree", "add", "--detach", wt_path, plan.stack.base_tip }) catch |err| {
         std.debug.print("Error: Could not create worktree: {any}\n", .{err});
         std.process.exit(1);
     };
@@ -182,7 +182,24 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
         const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
 
-        // Create the fix branch in worktree
+        // Checkout the correct parent (base tip or parent -fix), then create the fix branch
+        const parent_ref_allocated = if (branch.parent_branch) |parent| !std.mem.eql(u8, parent, plan.stack.base_branch) else false;
+        const parent_ref = if (branch.parent_branch) |parent| blk: {
+            if (std.mem.eql(u8, parent, plan.stack.base_branch)) {
+                break :blk plan.stack.base_tip;
+            } else {
+                break :blk try std.fmt.allocPrint(allocator, "{s}-fix", .{parent});
+            }
+        } else plan.stack.base_tip;
+        defer if (parent_ref_allocated) allocator.free(parent_ref);
+
+        _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", parent_ref }) catch |err| {
+            std.debug.print("Error: Could not checkout parent {s}: {any}\n", .{ parent_ref, err });
+            state.status = .failed;
+            try saveState(allocator, state);
+            std.process.exit(1);
+        };
+
         std.debug.print("  Creating branch: {s}\n", .{fix_branch_name});
 
         _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", "-b", fix_branch_name }) catch |err| {
@@ -495,9 +512,25 @@ fn handleContinue(allocator: std.mem.Allocator) !void {
         const fix_branch_name = try std.fmt.allocPrint(allocator, "{s}-fix", .{branch.name});
 
         // For the first (resumed) branch, we're already on it after cherry-pick --continue
-        // For subsequent branches, we need to create and cherry-pick
+        // For subsequent branches, we need to check out the parent and create the branch
         if (!is_first) {
-            // Create the fix branch in worktree
+            const parent_ref_allocated = if (branch.parent_branch) |parent| !std.mem.eql(u8, parent, plan.stack.base_branch) else false;
+            const parent_ref = if (branch.parent_branch) |parent| blk: {
+                if (std.mem.eql(u8, parent, plan.stack.base_branch)) {
+                    break :blk plan.stack.base_tip;
+                } else {
+                    break :blk try std.fmt.allocPrint(allocator, "{s}-fix", .{parent});
+                }
+            } else plan.stack.base_tip;
+            defer if (parent_ref_allocated) allocator.free(parent_ref);
+
+            _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", parent_ref }) catch |err| {
+                std.debug.print("Error: Could not checkout parent {s}: {any}\n", .{ parent_ref, err });
+                state.status = .failed;
+                try saveState(allocator, state);
+                std.process.exit(1);
+            };
+
             std.debug.print("  Creating branch: {s}\n", .{fix_branch_name});
 
             _ = process.runGitInDir(allocator, wt_path, &.{ "checkout", "-b", fix_branch_name }) catch |err| {
@@ -742,7 +775,7 @@ fn cleanupState() void {
 }
 
 fn validatePlanStack(allocator: std.mem.Allocator, plan: types.Plan) !void {
-    var current = stack_mod.analyzeStack(allocator) catch |err| {
+    var current = stack_mod.analyzeStack(allocator, plan.stack.base_branch) catch |err| {
         std.debug.print("Error: Could not analyze current stack: {any}\n", .{err});
         return err;
     };
@@ -773,18 +806,21 @@ fn validatePlanStack(allocator: std.mem.Allocator, plan: types.Plan) !void {
         try planned_set.put(allocator, branch.name, {});
     }
 
-    const feature_raw = process.runGit(allocator, &.{
+    const branch_raw = process.runGit(allocator, &.{
         "for-each-ref",
         "--format=%(refname:short)",
-        "refs/heads/feature",
+        "refs/heads",
     }) catch return types.RestackError.InvalidPlan;
-    defer allocator.free(feature_raw);
+    defer allocator.free(branch_raw);
 
-    var iter = std.mem.splitScalar(u8, strings.trim(feature_raw), '\n');
+    var iter = std.mem.splitScalar(u8, strings.trim(branch_raw), '\n');
     while (iter.next()) |line| {
         const name = strings.trim(line);
         if (name.len == 0) continue;
         if (planned_set.contains(name)) continue;
+        if (std.mem.eql(u8, name, plan.stack.base_branch)) continue;
+        if (std.mem.indexOf(u8, name, "git-restack") != null) continue; // internal plan/backup branches
+        if (std.mem.endsWith(u8, name, "-fix")) continue; // allow existing -fix branches
         if (isBranchInRange(allocator, current.base_commit, current.head_commit, name)) {
             return types.RestackError.InvalidPlan;
         }

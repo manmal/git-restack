@@ -20,6 +20,7 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
     var worktree_path: ?[]const u8 = null;
     var mergetool: ?[]const u8 = null;
     var force = false;
+    var base_branch_override: ?[]const u8 = null;
 
     // Parse options
     var i: usize = 0;
@@ -57,6 +58,11 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
                 i += 1;
                 worktree_path = args[i];
             }
+        } else if (std.mem.eql(u8, arg, "--base") or std.mem.eql(u8, arg, "--onto")) {
+            if (i + 1 < args.len) {
+                i += 1;
+                base_branch_override = args[i];
+            }
         } else if (std.mem.eql(u8, arg, "--mergetool")) {
             if (i + 1 < args.len) {
                 i += 1;
@@ -72,13 +78,17 @@ pub fn run(allocator: std.mem.Allocator, args: []const []const u8) !void {
 
     // 1. Analyze stack
     std.debug.print("Analyzing branch stack...\n", .{});
-    var stack = stack_mod.analyzeStack(allocator) catch |err| {
+    var stack = stack_mod.analyzeStack(allocator, base_branch_override) catch |err| {
         switch (err) {
             types.RestackError.GitCommandFailed => {
                 std.debug.print("Error: Git command failed. Are you in a git repository?\n", .{});
             },
             types.RestackError.BaseBranchNotFound => {
-                std.debug.print("Error: Could not find 'develop' or 'main' base branch.\n", .{});
+                if (base_branch_override) |base| {
+                    std.debug.print("Error: Base branch '{s}' not found.\n", .{base});
+                } else {
+                    std.debug.print("Error: Could not find 'develop' or 'main' base branch.\n", .{});
+                }
             },
             else => {
                 std.debug.print("Error: {any}\n", .{err});
@@ -437,7 +447,7 @@ fn simulateConflicts(
             } else |_| {}
         }
 
-        const worktree_out = process.runGit(allocator, &.{ "worktree", "add", wt_path, stack.base_branch }) catch |err| {
+        const worktree_out = process.runGit(allocator, &.{ "worktree", "add", "--detach", wt_path, stack.base_tip }) catch |err| {
             std.debug.print("Error: Could not create plan worktree: {any}\n", .{err});
             return err;
         };
@@ -1249,6 +1259,7 @@ fn printHelp() void {
         \\  --unstaged-only          Only analyze unstaged changes
         \\  --mode <worktree|direct> Conflict detection mode (default: worktree)
         \\  --direct                 Alias for --mode direct
+        \\  --base, --onto <branch>  Override base branch (default: develop or main)
         \\  --worktree-path <path>   Where to create plan worktree (worktree mode)
         \\  --mergetool <tool>       Merge tool to launch on conflicts (uses git config if omitted)
         \\  -f, --force              Remove existing plan worktree if present
@@ -1262,6 +1273,7 @@ fn printHelp() void {
         \\  git-restack plan --verify "swift build"
         \\  git-restack plan --verify "npm test"
         \\  git-restack plan --verify-only "make lint && make test"
+        \\  git-restack plan --base release/1.2.0
         \\
     , .{});
 }
